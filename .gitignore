@@ -1,0 +1,17 @@
+.env
+
+# Dependências
+node_modules/
+
+# Builds
+dist/
+backend/dist/
+frontend/dist/
+
+# Banco de dados SQLite
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+*.log
