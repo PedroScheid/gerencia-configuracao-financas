@@ -88,6 +88,17 @@ body {
   letter-spacing: 0.5px;
 }
 
+.header__version {
+  font-size: 0.7rem;
+  font-weight: 500;
+  opacity: 0.6;
+  background: rgba(255, 255, 255, 0.15);
+  padding: 2px 7px;
+  border-radius: 20px;
+  letter-spacing: 0.3px;
+  align-self: center;
+}
+
 .header__user {
   display: flex;
   align-items: center;
@@ -414,6 +425,13 @@ body {
   align-items: center;
   gap: 0.75rem;
   flex-wrap: wrap;
+}
+
+.toolbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
 }
 
 /* =============================================

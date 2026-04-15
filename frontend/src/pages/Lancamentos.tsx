@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import Header from "../components/Header";
 import LancamentoForm from "./LancamentoForm";
 import api from "../services/api";
+import { exportLancamentosToPdf } from "../services/pdfExportService";
 import { Lancamento, LancamentoFormData } from "../types";
 
 function formatCurrency(value: number) {
@@ -24,6 +25,8 @@ export default function Lancamentos() {
   const [filterSituacao, setFilterSituacao] = useState<
     "TODOS" | "ATIVO" | "INATIVO"
   >("TODOS");
+  const [filterDataInicio, setFilterDataInicio] = useState("");
+  const [filterDataFim, setFilterDataFim] = useState("");
 
   const [showForm, setShowForm] = useState(false);
   const [editingLancamento, setEditingLancamento] = useState<Lancamento | null>(
@@ -36,14 +39,19 @@ export default function Lancamentos() {
     try {
       setLoading(true);
       setError("");
-      const { data } = await api.get<Lancamento[]>("/lancamentos");
+      const params: Record<string, string> = {};
+      if (filterDataInicio) params.data_inicio = filterDataInicio;
+      if (filterDataFim) params.data_fim = filterDataFim;
+      if (filterSituacao !== "TODOS") params.situacao = filterSituacao;
+
+      const { data } = await api.get<Lancamento[]>("/lancamentos", { params });
       setLancamentos(data);
     } catch {
       setError("Erro ao carregar lançamentos.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [filterDataInicio, filterDataFim, filterSituacao]);
 
   useEffect(() => {
     fetchLancamentos();
@@ -81,15 +89,25 @@ export default function Lancamentos() {
     setEditingLancamento(null);
   }
 
+  function clearFilters() {
+    setFilterDataInicio("");
+    setFilterDataFim("");
+    setFilterSituacao("TODOS");
+    setFilterTipo("TODOS");
+    setSearch("");
+  }
+
+  function handleExportPdf() {
+    exportLancamentosToPdf(filtered);
+  }
+
   const filtered = lancamentos.filter((l) => {
     const matchSearch = l.descricao
       .toLowerCase()
       .includes(search.toLowerCase());
     const matchTipo =
       filterTipo === "TODOS" || l.tipo_lancamento === filterTipo;
-    const matchSituacao =
-      filterSituacao === "TODOS" || l.situacao === filterSituacao;
-    return matchSearch && matchTipo && matchSituacao;
+    return matchSearch && matchTipo;
   });
 
   const totalReceitas = lancamentos
@@ -160,10 +178,53 @@ export default function Lancamentos() {
               <option value="ATIVO">Ativo</option>
               <option value="INATIVO">Inativo</option>
             </select>
+            <label className="form-label" htmlFor="data-inicio">
+              De:
+            </label>
+            <input
+              id="data-inicio"
+              type="date"
+              className="form-input"
+              value={filterDataInicio}
+              onChange={(e) => setFilterDataInicio(e.target.value)}
+            />
+            <label className="form-label" htmlFor="data-fim">
+              Até:
+            </label>
+            <input
+              id="data-fim"
+              type="date"
+              className="form-input"
+              value={filterDataFim}
+              min={filterDataInicio || undefined}
+              onChange={(e) => setFilterDataFim(e.target.value)}
+            />
+            {(filterDataInicio ||
+              filterDataFim ||
+              filterSituacao !== "TODOS" ||
+              filterTipo !== "TODOS" ||
+              search) && (
+              <button
+                className="btn btn--secondary btn--sm"
+                onClick={clearFilters}
+                title="Limpar filtros"
+              >
+                ✕ Limpar
+              </button>
+            )}
           </div>
-          <button className="btn btn--primary" onClick={openNew}>
-            + Novo Lançamento
-          </button>
+          <div className="toolbar__actions">
+            <button
+              className="btn btn--secondary"
+              onClick={handleExportPdf}
+              title="Exportar para PDF"
+            >
+              📄 Exportar PDF
+            </button>
+            <button className="btn btn--primary" onClick={openNew}>
+              + Novo Lançamento
+            </button>
+          </div>
         </div>
 
         {/* Tabela */}
