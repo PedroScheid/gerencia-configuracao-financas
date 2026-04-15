@@ -432,6 +432,27 @@ body {
   align-items: center;
   gap: 0.5rem;
   flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+/* Notification email input */
+.notification-email {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.notification-email__label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.notification-email__input {
+  width: 220px;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.7rem;
 }
 
 /* =============================================

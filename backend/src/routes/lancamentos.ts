@@ -5,7 +5,7 @@ import {
   LancamentoService,
   LancamentoFilters,
 } from "../services/lancamentoService";
-import { NodemailerEmailService } from "../services/emailService";
+import { ResendEmailService } from "../services/emailService";
 import type { IEmailService } from "../services/emailService";
 
 const router = Router();
@@ -15,7 +15,7 @@ router.use(authMiddleware);
 
 /** Factory – allows tests to inject a mock email service */
 export function createLancamentoService(
-  emailService: IEmailService = new NodemailerEmailService(),
+  emailService: IEmailService = new ResendEmailService(),
 ): LancamentoService {
   return new LancamentoService(getDb(), emailService);
 }
@@ -53,14 +53,21 @@ router.get("/:id", (req: AuthRequest, res: Response): void => {
 
 // POST /api/lancamentos
 router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
-  const { descricao, data_lancamento, valor, tipo_lancamento, situacao } =
-    req.body as Partial<{
-      descricao: string;
-      data_lancamento: string;
-      valor: number;
-      tipo_lancamento: string;
-      situacao: string;
-    }>;
+  const {
+    descricao,
+    data_lancamento,
+    valor,
+    tipo_lancamento,
+    situacao,
+    notification_email,
+  } = req.body as Partial<{
+    descricao: string;
+    data_lancamento: string;
+    valor: number;
+    tipo_lancamento: string;
+    situacao: string;
+    notification_email: string;
+  }>;
 
   if (
     !descricao ||
@@ -86,13 +93,16 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
 
   try {
     const service = createLancamentoService();
-    const novo = await service.create({
-      descricao,
-      data_lancamento,
-      valor: Number(valor),
-      tipo_lancamento,
-      situacao,
-    });
+    const novo = await service.create(
+      {
+        descricao,
+        data_lancamento,
+        valor: Number(valor),
+        tipo_lancamento,
+        situacao,
+      },
+      notification_email || undefined,
+    );
     res.status(201).json(novo);
   } catch (err) {
     console.error("[POST /lancamentos]", err);
@@ -106,7 +116,15 @@ router.put("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
 
   try {
     const service = createLancamentoService();
-    const updated = await service.update(id, req.body);
+    const { notification_email, ...updateData } = req.body as Record<
+      string,
+      string
+    >;
+    const updated = await service.update(
+      id,
+      updateData,
+      notification_email || undefined,
+    );
 
     if (!updated) {
       res.status(404).json({ error: "Lançamento não encontrado" });

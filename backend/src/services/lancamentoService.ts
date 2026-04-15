@@ -60,7 +60,10 @@ export class LancamentoService {
       | undefined;
   }
 
-  async create(data: CreateLancamentoData): Promise<LancamentoRow> {
+  async create(
+    data: CreateLancamentoData,
+    notificationEmail?: string,
+  ): Promise<LancamentoRow> {
     const result = this.db
       .prepare(
         "INSERT INTO lancamento (descricao, data_lancamento, valor, tipo_lancamento, situacao) VALUES (?, ?, ?, ?, ?)",
@@ -77,10 +80,18 @@ export class LancamentoService {
       .prepare("SELECT * FROM lancamento WHERE id = ?")
       .get(result.lastInsertRowid) as LancamentoRow;
 
-    await this.emailService.sendLancamentoNotification(
-      novo as LancamentoEmailData,
-      "created",
-    );
+    this.emailService
+      .sendLancamentoNotification(
+        novo as LancamentoEmailData,
+        "created",
+        notificationEmail,
+      )
+      .catch((err) =>
+        console.error(
+          "[LancamentoService] Falha ao enviar e-mail (create):",
+          err,
+        ),
+      );
 
     return novo;
   }
@@ -88,6 +99,7 @@ export class LancamentoService {
   async update(
     id: number,
     data: Partial<CreateLancamentoData>,
+    notificationEmail?: string,
   ): Promise<LancamentoRow | null> {
     const existing = this.getById(id);
     if (!existing) return null;
@@ -107,10 +119,18 @@ export class LancamentoService {
 
     const updated = this.getById(id) as LancamentoRow;
 
-    await this.emailService.sendLancamentoNotification(
-      updated as LancamentoEmailData,
-      "updated",
-    );
+    this.emailService
+      .sendLancamentoNotification(
+        updated as LancamentoEmailData,
+        "updated",
+        notificationEmail,
+      )
+      .catch((err) =>
+        console.error(
+          "[LancamentoService] Falha ao enviar e-mail (update):",
+          err,
+        ),
+      );
 
     return updated;
   }

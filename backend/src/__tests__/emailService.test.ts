@@ -1,5 +1,6 @@
 import {
   NodemailerEmailService,
+  ResendEmailService,
   buildEmailHtml,
   IEmailService,
   LancamentoEmailData,
@@ -7,6 +8,14 @@ import {
 import nodemailer from "nodemailer";
 
 jest.mock("nodemailer");
+
+// Mock do SDK Resend
+const mockResendSend = jest.fn();
+jest.mock("resend", () => ({
+  Resend: jest.fn().mockImplementation(() => ({
+    emails: { send: mockResendSend },
+  })),
+}));
 
 const mockSendMail = jest.fn().mockResolvedValue({ messageId: "test-id" });
 const mockCreateTransport = nodemailer.createTransport as jest.Mock;
@@ -115,6 +124,103 @@ describe("NodemailerEmailService", () => {
 
     const callArgs = mockSendMail.mock.calls[0][0];
     expect(callArgs.subject).toContain("Despesa");
+  });
+});
+
+describe("ResendEmailService", () => {
+  let service: IEmailService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockResendSend.mockResolvedValue({
+      data: { id: "resend-test-id" },
+      error: null,
+    });
+    service = new ResendEmailService();
+  });
+
+  afterEach(() => {
+    delete process.env.RESEND_API_KEY;
+    delete process.env.NOTIFICATION_EMAIL;
+  });
+
+  // Test R1
+  it("skips sending when config is missing and does not throw", async () => {
+    await expect(
+      service.sendLancamentoNotification(makeLancamento(), "created"),
+    ).resolves.not.toThrow();
+    expect(mockResendSend).not.toHaveBeenCalled();
+  });
+
+  // Test R2
+  it("calls resend.emails.send exactly once when config is present", async () => {
+    process.env.RESEND_API_KEY = "re_test_key";
+    process.env.NOTIFICATION_EMAIL = "pedroscheid10@gmail.com";
+
+    await service.sendLancamentoNotification(makeLancamento(), "created");
+
+    expect(mockResendSend).toHaveBeenCalledTimes(1);
+  });
+
+  // Test R3
+  it("sends email with action 'created' reflected in subject", async () => {
+    process.env.RESEND_API_KEY = "re_test_key";
+    process.env.NOTIFICATION_EMAIL = "pedroscheid10@gmail.com";
+
+    await service.sendLancamentoNotification(makeLancamento(), "created");
+
+    const callArgs = mockResendSend.mock.calls[0][0];
+    expect(callArgs.subject).toContain("criado");
+  });
+
+  // Test R4
+  it("sends email with action 'updated' reflected in subject", async () => {
+    process.env.RESEND_API_KEY = "re_test_key";
+    process.env.NOTIFICATION_EMAIL = "pedroscheid10@gmail.com";
+
+    await service.sendLancamentoNotification(makeLancamento(), "updated");
+
+    const callArgs = mockResendSend.mock.calls[0][0];
+    expect(callArgs.subject).toContain("atualizado");
+  });
+
+  // Test R5
+  it("sends DESPESA email with correct tipo in subject", async () => {
+    process.env.RESEND_API_KEY = "re_test_key";
+    process.env.NOTIFICATION_EMAIL = "pedroscheid10@gmail.com";
+
+    await service.sendLancamentoNotification(
+      makeLancamento({ tipo_lancamento: "DESPESA", valor: 200 }),
+      "created",
+    );
+
+    const callArgs = mockResendSend.mock.calls[0][0];
+    expect(callArgs.subject).toContain("Despesa");
+  });
+
+  // Test R6
+  it("throws when Resend returns an error object", async () => {
+    process.env.RESEND_API_KEY = "re_test_key";
+    process.env.NOTIFICATION_EMAIL = "pedroscheid10@gmail.com";
+    mockResendSend.mockResolvedValueOnce({
+      data: null,
+      error: { message: "invalid api key" },
+    });
+
+    await expect(
+      service.sendLancamentoNotification(makeLancamento(), "created"),
+    ).rejects.toThrow("invalid api key");
+  });
+
+  // Test R7
+  it("sends to the address defined in NOTIFICATION_EMAIL", async () => {
+    process.env.RESEND_API_KEY = "re_test_key";
+    process.env.NOTIFICATION_EMAIL = "pedroscheid10@gmail.com";
+
+    await service.sendLancamentoNotification(makeLancamento(), "created");
+
+    const callArgs = mockResendSend.mock.calls[0][0];
+    expect(callArgs.to).toBe("pedroscheid10@gmail.com");
   });
 });
 

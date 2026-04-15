@@ -5,6 +5,9 @@ import api from "../services/api";
 import { exportLancamentosToPdf } from "../services/pdfExportService";
 import { Lancamento, LancamentoFormData } from "../types";
 
+const DEFAULT_NOTIFICATION_EMAIL = "pedroscheid10@gmail.com";
+const LS_KEY = "notification_email";
+
 function formatCurrency(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
@@ -35,6 +38,10 @@ export default function Lancamentos() {
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
+  const [notificationEmail, setNotificationEmail] = useState<string>(
+    () => localStorage.getItem(LS_KEY) ?? DEFAULT_NOTIFICATION_EMAIL,
+  );
+
   const fetchLancamentos = useCallback(async () => {
     try {
       setLoading(true);
@@ -58,7 +65,12 @@ export default function Lancamentos() {
   }, [fetchLancamentos]);
 
   async function handleSave(formData: LancamentoFormData) {
-    const payload = { ...formData, valor: Number(formData.valor) };
+    const payload = {
+      ...formData,
+      valor: Number(formData.valor),
+      notification_email:
+        notificationEmail.trim() || DEFAULT_NOTIFICATION_EMAIL,
+    };
     if (editingLancamento) {
       await api.put(`/lancamentos/${editingLancamento.id}`, payload);
     } else {
@@ -214,6 +226,26 @@ export default function Lancamentos() {
             )}
           </div>
           <div className="toolbar__actions">
+            <div className="notification-email">
+              <label
+                htmlFor="notification-email"
+                className="notification-email__label"
+              >
+                ✉️ Notificar:
+              </label>
+              <input
+                id="notification-email"
+                type="email"
+                className="form-input notification-email__input"
+                value={notificationEmail}
+                onChange={(e) => {
+                  setNotificationEmail(e.target.value);
+                  localStorage.setItem(LS_KEY, e.target.value);
+                }}
+                placeholder={DEFAULT_NOTIFICATION_EMAIL}
+                title="E-mail que receberá notificações de criação/edição de lançamentos"
+              />
+            </div>
             <button
               className="btn btn--secondary"
               onClick={handleExportPdf}

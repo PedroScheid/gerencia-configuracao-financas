@@ -35,6 +35,7 @@ function initializeDatabase(database: Database.Database): void {
       tipo_lancamento TEXT NOT NULL CHECK(tipo_lancamento IN ('RECEITA', 'DESPESA')),
       situacao TEXT NOT NULL DEFAULT 'ATIVO' CHECK(situacao IN ('ATIVO', 'INATIVO'))
     );
+
   `);
 
   const usuarioCount = (

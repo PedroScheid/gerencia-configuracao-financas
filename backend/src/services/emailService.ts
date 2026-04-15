@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { Resend } from "resend";
 
 export interface LancamentoEmailData {
   id: number;
@@ -16,6 +17,7 @@ export interface IEmailService {
   sendLancamentoNotification(
     lancamento: LancamentoEmailData,
     action: EmailAction,
+    emailTo?: string,
   ): Promise<void>;
 }
 
@@ -64,12 +66,13 @@ export class NodemailerEmailService implements IEmailService {
   async sendLancamentoNotification(
     lancamento: LancamentoEmailData,
     action: EmailAction,
+    emailTo?: string,
   ): Promise<void> {
     const smtpHost = process.env.SMTP_HOST;
     const smtpPort = Number(process.env.SMTP_PORT) || 587;
     const smtpUser = process.env.SMTP_USER;
     const smtpPass = process.env.SMTP_PASS;
-    const emailTo = process.env.NOTIFICATION_EMAIL;
+    const emailTo_ = emailTo ?? process.env.NOTIFICATION_EMAIL;
 
     // Log das variáveis de ambiente lidas
     console.log("[EmailService] SMTP config:", {
@@ -81,7 +84,7 @@ export class NodemailerEmailService implements IEmailService {
       SMTP_SECURE: process.env.SMTP_SECURE,
     });
 
-    if (!smtpHost || !smtpUser || !smtpPass || !emailTo) {
+    if (!smtpHost || !smtpUser || !smtpPass || !emailTo_) {
       console.warn(
         "[EmailService] Notification skipped: SMTP configuration missing. " +
           "Set SMTP_HOST, SMTP_USER, SMTP_PASS and NOTIFICATION_EMAIL.",
@@ -107,7 +110,7 @@ export class NodemailerEmailService implements IEmailService {
     // Log do envio
     console.log("[EmailService] Enviando e-mail:", {
       from: smtpUser,
-      to: emailTo,
+      to: emailTo_,
       subject,
       action,
       tipo: lancamento.tipo_lancamento,
@@ -120,7 +123,7 @@ export class NodemailerEmailService implements IEmailService {
     try {
       await transporter.sendMail({
         from: smtpUser,
-        to: emailTo,
+        to: emailTo_,
         subject,
         html: buildEmailHtml(lancamento, action),
       });
@@ -133,3 +136,55 @@ export class NodemailerEmailService implements IEmailService {
 }
 
 export { buildEmailHtml };
+
+// ---------------------------------------------------------------------------
+// ResendEmailService – uses the Resend HTTP API (never blocked by firewalls)
+// Configure via: RESEND_API_KEY and NOTIFICATION_EMAIL in .env
+// ---------------------------------------------------------------------------
+export class ResendEmailService implements IEmailService {
+  async sendLancamentoNotification(
+    lancamento: LancamentoEmailData,
+    action: EmailAction,
+    emailTo?: string,
+  ): Promise<void> {
+    const apiKey = process.env.RESEND_API_KEY;
+    const emailTo_ = emailTo ?? process.env.NOTIFICATION_EMAIL;
+
+    if (!apiKey || !emailTo_) {
+      console.warn(
+        "[ResendEmailService] Notificação ignorada: defina RESEND_API_KEY e NOTIFICATION_EMAIL no .env",
+      );
+      return;
+    }
+
+    const resend = new Resend(apiKey);
+
+    const tipo =
+      lancamento.tipo_lancamento === "RECEITA" ? "Receita" : "Despesa";
+    const actionLabel = action === "created" ? "criado" : "atualizado";
+    const subject = `Lançamento ${actionLabel}: ${tipo} – R$ ${lancamento.valor.toFixed(2)}`;
+
+    console.log("[ResendEmailService] Enviando e-mail:", {
+      to: emailTo_,
+      subject,
+      action,
+      tipo: lancamento.tipo_lancamento,
+      valor: lancamento.valor,
+      data: lancamento.data_lancamento,
+    });
+
+    const { error } = await resend.emails.send({
+      from: "Finanças <onboarding@resend.dev>",
+      to: emailTo_,
+      subject,
+      html: buildEmailHtml(lancamento, action),
+    });
+
+    if (error) {
+      console.error("[ResendEmailService] Falha ao enviar e-mail:", error);
+      throw new Error(`Resend error: ${error.message}`);
+    }
+
+    console.log("[ResendEmailService] E-mail enviado com sucesso!");
+  }
+}
