@@ -1,36 +1,48 @@
 import { Router, Response } from "express";
 import { getDb } from "../database/db";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
+import {
+  LancamentoService,
+  LancamentoFilters,
+} from "../services/lancamentoService";
+import { ResendEmailService } from "../services/emailService";
+import type { IEmailService } from "../services/emailService";
 
 const router = Router();
 
-// Todas as rotas exigem autenticação
+// All routes require authentication
 router.use(authMiddleware);
 
-interface LancamentoRow {
-  id: number;
-  descricao: string;
-  data_lancamento: string;
-  valor: number;
-  tipo_lancamento: string;
-  situacao: string;
+/** Factory – allows tests to inject a mock email service */
+export function createLancamentoService(
+  emailService: IEmailService = new ResendEmailService(),
+): LancamentoService {
+  return new LancamentoService(getDb(), emailService);
 }
 
-// GET /api/lancamentos
+// GET /api/lancamentos?data_inicio=YYYY-MM-DD&data_fim=YYYY-MM-DD&situacao=ATIVO
 router.get("/", (_req: AuthRequest, res: Response): void => {
-  const db = getDb();
-  const lancamentos = db
-    .prepare("SELECT * FROM lancamento ORDER BY data_lancamento DESC, id DESC")
-    .all() as LancamentoRow[];
+  const { data_inicio, data_fim, situacao } = _req.query as Record<
+    string,
+    string | undefined
+  >;
+
+  const filters: LancamentoFilters = {
+    data_inicio: data_inicio || undefined,
+    data_fim: data_fim || undefined,
+    situacao: situacao || undefined,
+  };
+
+  const service = createLancamentoService();
+  const lancamentos = service.getAll(filters);
   res.json(lancamentos);
 });
 
 // GET /api/lancamentos/:id
 router.get("/:id", (req: AuthRequest, res: Response): void => {
-  const db = getDb();
-  const lancamento = db
-    .prepare("SELECT * FROM lancamento WHERE id = ?")
-    .get(req.params.id) as LancamentoRow | undefined;
+  const id = Number(req.params.id);
+  const service = createLancamentoService();
+  const lancamento = service.getById(id);
 
   if (!lancamento) {
     res.status(404).json({ error: "Lançamento não encontrado" });
@@ -40,9 +52,22 @@ router.get("/:id", (req: AuthRequest, res: Response): void => {
 });
 
 // POST /api/lancamentos
-router.post("/", (req: AuthRequest, res: Response): void => {
-  const { descricao, data_lancamento, valor, tipo_lancamento, situacao } =
-    req.body as Partial<LancamentoRow>;
+router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
+  const {
+    descricao,
+    data_lancamento,
+    valor,
+    tipo_lancamento,
+    situacao,
+    notification_email,
+  } = req.body as Partial<{
+    descricao: string;
+    data_lancamento: string;
+    valor: number;
+    tipo_lancamento: string;
+    situacao: string;
+    notification_email: string;
+  }>;
 
   if (
     !descricao ||
@@ -66,76 +91,64 @@ router.post("/", (req: AuthRequest, res: Response): void => {
     return;
   }
 
-  const db = getDb();
-  const result = db
-    .prepare(
-      "INSERT INTO lancamento (descricao, data_lancamento, valor, tipo_lancamento, situacao) VALUES (?, ?, ?, ?, ?)",
-    )
-    .run(
-      descricao,
-      data_lancamento,
-      valor,
-      tipo_lancamento,
-      situacao ?? "ATIVO",
+  try {
+    const service = createLancamentoService();
+    const novo = await service.create(
+      {
+        descricao,
+        data_lancamento,
+        valor: Number(valor),
+        tipo_lancamento,
+        situacao,
+      },
+      notification_email || undefined,
     );
-
-  const novo = db
-    .prepare("SELECT * FROM lancamento WHERE id = ?")
-    .get(result.lastInsertRowid) as LancamentoRow;
-
-  res.status(201).json(novo);
+    res.status(201).json(novo);
+  } catch (err) {
+    console.error("[POST /lancamentos]", err);
+    res.status(500).json({ error: "Erro interno ao criar lançamento" });
+  }
 });
 
 // PUT /api/lancamentos/:id
-router.put("/:id", (req: AuthRequest, res: Response): void => {
-  const { id } = req.params;
-  const db = getDb();
+router.put("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
+  const id = Number(req.params.id);
 
-  const existing = db
-    .prepare("SELECT * FROM lancamento WHERE id = ?")
-    .get(id) as LancamentoRow | undefined;
+  try {
+    const service = createLancamentoService();
+    const { notification_email, ...updateData } = req.body as Record<
+      string,
+      string
+    >;
+    const updated = await service.update(
+      id,
+      updateData,
+      notification_email || undefined,
+    );
 
-  if (!existing) {
-    res.status(404).json({ error: "Lançamento não encontrado" });
-    return;
+    if (!updated) {
+      res.status(404).json({ error: "Lançamento não encontrado" });
+      return;
+    }
+
+    res.json(updated);
+  } catch (err) {
+    console.error("[PUT /lancamentos/:id]", err);
+    res.status(500).json({ error: "Erro interno ao atualizar lançamento" });
   }
-
-  const { descricao, data_lancamento, valor, tipo_lancamento, situacao } =
-    req.body as Partial<LancamentoRow>;
-
-  db.prepare(
-    "UPDATE lancamento SET descricao=?, data_lancamento=?, valor=?, tipo_lancamento=?, situacao=? WHERE id=?",
-  ).run(
-    descricao ?? existing.descricao,
-    data_lancamento ?? existing.data_lancamento,
-    valor ?? existing.valor,
-    tipo_lancamento ?? existing.tipo_lancamento,
-    situacao ?? existing.situacao,
-    id,
-  );
-
-  const updated = db
-    .prepare("SELECT * FROM lancamento WHERE id = ?")
-    .get(id) as LancamentoRow;
-
-  res.json(updated);
 });
 
 // DELETE /api/lancamentos/:id
 router.delete("/:id", (req: AuthRequest, res: Response): void => {
-  const { id } = req.params;
-  const db = getDb();
+  const id = Number(req.params.id);
+  const service = createLancamentoService();
+  const deleted = service.delete(id);
 
-  const existing = db
-    .prepare("SELECT * FROM lancamento WHERE id = ?")
-    .get(id) as LancamentoRow | undefined;
-
-  if (!existing) {
+  if (!deleted) {
     res.status(404).json({ error: "Lançamento não encontrado" });
     return;
   }
 
-  db.prepare("DELETE FROM lancamento WHERE id = ?").run(id);
   res.status(204).send();
 });
 

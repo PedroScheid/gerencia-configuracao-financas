@@ -1,6 +1,11 @@
+import dotenv from "dotenv";
+import path from "path";
+
+// Carrega o .env sempre relativo ao próprio arquivo (funciona em dev e na VM)
+dotenv.config({ path: path.join(__dirname, "..", ".env") });
+
 import express from "express";
 import cors from "cors";
-import path from "path";
 import authRoutes from "./routes/auth";
 import lancamentosRoutes from "./routes/lancamentos";
 import { getDb } from "./database/db";

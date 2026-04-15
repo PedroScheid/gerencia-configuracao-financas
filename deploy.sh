@@ -33,6 +33,9 @@ scp -r frontend/dist     "$SERVER:$REMOTE_DIR/frontend/"
 # Copia configurações
 scp ecosystem.config.js  "$SERVER:$REMOTE_DIR/"
 
+# Copia o .env do backend (contém RESEND_API_KEY, NOTIFICATION_EMAIL, JWT_SECRET, etc.)
+scp backend/.env "$SERVER:$REMOTE_DIR/backend/"
+
 echo "==> [4/5] Instalando dependências de produção na VM..."
 ssh "$SERVER" "cd $REMOTE_DIR/backend && npm install --omit=dev"
 
