@@ -16,7 +16,7 @@ echo "==================================================="
 echo ""
 
 # ── 1. Instalar dependencias basicas ─────────────────────────
-echo "[1/8] Instalando dependencias do sistema..."
+echo "[1/7] Instalando dependencias do sistema..."
 sudo apt-get update -qq 2>&1 | tail -1 || echo "      AVISO: apt-get update com avisos (continuando...)"
 sudo apt-get install -y -qq \
     apt-transport-https \
@@ -29,7 +29,7 @@ sudo apt-get install -y -qq \
     git \
     2>&1 | tail -1 || echo "      AVISO: alguns pacotes podem nao ter instalado"
 
-# Ansible separado (pode nao estar no repo padrao)
+# Ansible separado
 sudo apt-get install -y -qq ansible 2>&1 | tail -1 || {
     echo "      Ansible nao disponivel via apt, tentando pip..."
     sudo apt-get install -y -qq python3-pip 2>&1 | tail -1 || true
@@ -38,20 +38,17 @@ sudo apt-get install -y -qq ansible 2>&1 | tail -1 || {
 echo "      OK"
 
 # ── 2. Instalar Docker ──────────────────────────────────────
-echo "[2/8] Instalando Docker..."
+echo "[2/7] Instalando Docker..."
 if command -v docker &>/dev/null; then
     echo "      Docker ja instalado: $(docker --version)"
 else
     curl -fsSL https://get.docker.com | sudo sh 2>&1 | tail -3 || {
-        echo "      AVISO: Instalacao Docker via get.docker.com falhou"
-        echo "      Tentando via apt..."
+        echo "      AVISO: get.docker.com falhou, tentando apt..."
         sudo apt-get install -y docker.io 2>&1 | tail -1 || true
     }
     echo "      Docker instalado"
 fi
-
-# Adicionar usuario ao grupo docker (pode falhar por falta de permissao)
-sudo usermod -aG docker univates 2>/dev/null || echo "      AVISO: usermod nao permitido (verificando se docker ja funciona...)"
+sudo usermod -aG docker univates 2>/dev/null || true
 sudo systemctl enable docker --now 2>/dev/null || true
 
 # Garantir acesso ao docker socket
@@ -59,24 +56,15 @@ if ! docker ps &>/dev/null; then
     echo "      Ajustando permissoes do Docker socket..."
     sudo chmod 666 /var/run/docker.sock 2>/dev/null || true
 fi
-
-# Verificar se docker funciona agora
 if docker ps &>/dev/null; then
     echo "      Docker funcionando OK"
 else
-    echo "      ERRO: Docker nao esta acessivel. Verifique permissoes."
-    echo "      Tentando chmod no socket..."
-    sudo chmod 666 /var/run/docker.sock || true
-    if docker ps &>/dev/null; then
-        echo "      Docker funcionando apos chmod"
-    else
-        echo "      ERRO CRITICO: Docker nao funciona. Abortando."
-        exit 1
-    fi
+    echo "      ERRO CRITICO: Docker nao funciona. Abortando."
+    exit 1
 fi
 
 # ── 3. Instalar Terraform ───────────────────────────────────
-echo "[3/8] Instalando Terraform..."
+echo "[3/7] Instalando Terraform..."
 if command -v terraform &>/dev/null; then
     echo "      Terraform ja instalado: $(terraform version | head -1)"
 else
@@ -88,7 +76,7 @@ else
 fi
 
 # ── 4. Instalar Node.js ─────────────────────────────────────
-echo "[4/8] Instalando Node.js..."
+echo "[4/7] Instalando Node.js..."
 if command -v node &>/dev/null; then
     echo "      Node.js ja instalado: $(node --version)"
 else
@@ -98,7 +86,7 @@ else
 fi
 
 # ── 5. Configurar Firewall ──────────────────────────────────
-echo "[5/8] Configurando firewall..."
+echo "[5/7] Configurando firewall..."
 for PORT in 22 3000 3001 3002 8080 8082 10051; do
     sudo ufw allow ${PORT}/tcp >/dev/null 2>&1 || true
 done
@@ -106,7 +94,7 @@ echo "y" | sudo ufw enable 2>/dev/null || true
 echo "      Portas liberadas: 22, 3000-3002, 8080, 8082, 10051"
 
 # ── 6. Clonar/Atualizar repositorio ─────────────────────────
-echo "[6/8] Preparando repositorio..."
+echo "[6/7] Preparando repositorio..."
 if [ -d "${PROJECT_DIR}/.git" ]; then
     cd "${PROJECT_DIR}"
     git pull origin main 2>&1 | tail -1 || echo "      AVISO: git pull falhou (usando versao local)"
@@ -119,30 +107,33 @@ fi
 cd "${PROJECT_DIR}"
 chmod +x scripts/*.sh 2>/dev/null || true
 
-# ── 7. Rodar Ansible (registro formal do provisionamento) ───
-echo "[7/8] Executando Ansible playbook..."
-if command -v ansible-playbook &>/dev/null; then
-    cd "${PROJECT_DIR}/ansible"
-    ansible-playbook -i inventory.ini playbook.yml --connection=local 2>&1 | grep -E "(ok=|changed=|TASK|PLAY|fatal|msg)" || true
-    echo "      Ansible concluido"
-else
-    echo "      AVISO: ansible-playbook nao encontrado, pulando (ferramentas ja instaladas manualmente)"
-fi
-
-# ── 8. Terraform — sobe Jenkins + Zabbix ────────────────────
-echo "[8/8] Executando Terraform..."
+# ── 7. Terraform — sobe Jenkins + Zabbix ────────────────────
+echo "[7/7] Executando Terraform..."
 cd "${PROJECT_DIR}/terraform"
 
-# Cria a rede Docker
-docker network create financas-network 2>/dev/null || true
+# Limpa estado anterior se existir (re-run seguro)
+rm -rf .terraform terraform.tfstate terraform.tfstate.backup 2>/dev/null || true
 
+# Remove containers/networks antigos pra Terraform criar do zero
+echo "      Parando containers antigos..."
+docker stop jenkins zabbix-web zabbix-server zabbix-agent zabbix-postgres 2>/dev/null || true
+docker rm jenkins zabbix-web zabbix-server zabbix-agent zabbix-postgres 2>/dev/null || true
+docker network rm financas-network 2>/dev/null || true
+
+echo "      Inicializando Terraform..."
 terraform init -input=false 2>&1 | tail -2
-terraform apply -auto-approve -input=false -var="jenkins_enabled=true" 2>&1 | tail -15
+
+echo "      Aplicando infraestrutura..."
+terraform apply -auto-approve -input=false -var="jenkins_enabled=true"
 
 # ── Aguardar containers subirem ──────────────────────────────
 echo ""
 echo "Aguardando containers iniciarem..."
 sleep 15
+
+# ── Instalar Docker CLI dentro do Jenkins ────────────────────
+echo "Instalando Docker CLI no Jenkins..."
+docker exec jenkins bash -c "apt-get update -qq && apt-get install -y -qq docker.io" 2>&1 | tail -1 || true
 
 # ── Mostrar status ───────────────────────────────────────────
 echo ""
@@ -159,7 +150,7 @@ echo "  Jenkins: http://177.44.248.116:8082"
 echo "  Zabbix:  http://177.44.248.116:8080"
 echo ""
 echo "  Senha inicial do Jenkins:"
-docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword 2>/dev/null || echo "  (Jenkins ainda iniciando, aguarde 1 min e rode: docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword)"
+docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword 2>/dev/null || echo "  (aguarde 1 min e rode: docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword)"
 echo ""
 echo "  Zabbix login: Admin / zabbix"
 echo "==================================================="

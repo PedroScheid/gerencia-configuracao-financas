@@ -4,68 +4,33 @@
   become: yes
 
   vars:
-    docker_compose_version: "2.24.0"
-    terraform_version: "1.7.0"
     node_version: "20"
 
   tasks:
     # ── Docker ─────────────────────────────────────────────
-    - name: Instalar dependências do Docker
-      apt:
-        name:
-          - apt-transport-https
-          - ca-certificates
-          - curl
-          - gnupg
-          - lsb-release
-          - software-properties-common
-        state: present
-        update_cache: yes
+    - name: Verificar se Docker ja esta instalado
+      command: docker --version
+      register: docker_check
+      ignore_errors: yes
+      changed_when: false
 
-    - name: Adicionar chave GPG do Docker
-      apt_key:
-        url: https://download.docker.com/linux/ubuntu/gpg
-        state: present
-
-    - name: Adicionar repositório Docker
-      apt_repository:
-        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
-        state: present
-
-    - name: Instalar Docker Engine
-      apt:
-        name:
-          - docker-ce
-          - docker-ce-cli
-          - containerd.io
-          - docker-compose-plugin
-        state: present
-        update_cache: yes
-
-    - name: Adicionar usuário ao grupo docker
-      user:
-        name: "{{ ansible_user_id }}"
-        groups: docker
-        append: yes
+    - name: Instalar Docker (se necessario)
+      shell: curl -fsSL https://get.docker.com | sh
+      when: docker_check.rc != 0
 
     - name: Habilitar e iniciar Docker
       systemd:
         name: docker
         enabled: yes
         state: started
+      ignore_errors: yes
 
     # ── Terraform ──────────────────────────────────────────
-    - name: Verificar se Terraform já está instalado
+    - name: Verificar se Terraform ja esta instalado
       command: terraform version
       register: terraform_check
       ignore_errors: yes
       changed_when: false
-
-    - name: Baixar Terraform
-      get_url:
-        url: "https://releases.hashicorp.com/terraform/{{ terraform_version }}/terraform_{{ terraform_version }}_linux_amd64.zip"
-        dest: /tmp/terraform.zip
-      when: terraform_check.rc != 0
 
     - name: Instalar unzip
       apt:
@@ -73,21 +38,21 @@
         state: present
       when: terraform_check.rc != 0
 
-    - name: Descompactar Terraform
-      unarchive:
-        src: /tmp/terraform.zip
-        dest: /usr/local/bin/
-        remote_src: yes
+    - name: Baixar e instalar Terraform
+      shell: |
+        curl -fsSL "https://releases.hashicorp.com/terraform/1.7.0/terraform_1.7.0_linux_amd64.zip" -o /tmp/terraform.zip
+        unzip -o /tmp/terraform.zip -d /usr/local/bin/
+        rm -f /tmp/terraform.zip
       when: terraform_check.rc != 0
 
     # ── Node.js ────────────────────────────────────────────
-    - name: Verificar se Node.js já está instalado
+    - name: Verificar se Node.js ja esta instalado
       command: node --version
       register: node_check
       ignore_errors: yes
       changed_when: false
 
-    - name: Instalar Node.js {{ node_version }}
+    - name: Instalar Node.js
       shell: |
         curl -fsSL https://deb.nodesource.com/setup_{{ node_version }}.x | bash -
         apt-get install -y nodejs
@@ -106,35 +71,25 @@
         port: "{{ item }}"
         proto: tcp
       loop:
-        - "22"     # SSH
-        - "3000"   # Produção
-        - "3001"   # Integração
-        - "3002"   # Homologação
-        - "8080"   # Zabbix
-        - "8082"   # Jenkins
-        - "10051"  # Zabbix Agent
+        - "22"
+        - "3000"
+        - "3001"
+        - "3002"
+        - "8080"
+        - "8082"
+        - "10051"
+      ignore_errors: yes
 
-    - name: Habilitar UFW
-      ufw:
-        state: enabled
-        policy: allow
-
-    # ── Diretório do projeto ───────────────────────────────
-    - name: Criar diretório do projeto
-      file:
-        path: /home/{{ ansible_user_id }}/financas
-        state: directory
-        owner: "{{ ansible_user_id }}"
-        mode: '0755'
+    # ── Resumo ─────────────────────────────────────────────
+    - name: Verificar versoes instaladas
+      shell: |
+        echo "Docker: $(docker --version 2>/dev/null || echo 'N/A')"
+        echo "Terraform: $(terraform version 2>/dev/null | head -1 || echo 'N/A')"
+        echo "Node.js: $(node --version 2>/dev/null || echo 'N/A')"
+        echo "Git: $(git --version 2>/dev/null || echo 'N/A')"
+      register: versions
+      changed_when: false
 
     - name: Exibir resumo
       debug:
-        msg: |
-          ═══════════════════════════════════════════════
-          VM provisionada com sucesso!
-          - Docker: instalado
-          - Terraform: instalado
-          - Node.js: v{{ node_version }}
-          - Git: instalado
-          - Firewall: configurado
-          ═══════════════════════════════════════════════
+        msg: "{{ versions.stdout_lines }}"
