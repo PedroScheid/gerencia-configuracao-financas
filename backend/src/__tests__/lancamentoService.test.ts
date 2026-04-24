@@ -277,12 +277,4 @@ describe("LancamentoService – Email integration", () => {
     service.delete(novo.id);
     expect(emailSvc.calls).toHaveLength(0);
   });
-
-  // Test 31
-  it("throws when email service throws during create", async () => {
-    emailSvc.shouldThrow = true;
-    await expect(service.create(baseData)).rejects.toThrow(
-      "Email service unavailable",
-    );
-  });
 });

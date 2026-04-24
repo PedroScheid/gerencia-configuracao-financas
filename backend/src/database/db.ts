@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import bcrypt from "bcryptjs";
 import path from "path";
+import fs from "fs";
 
 const DB_PATH =
   process.env.DB_PATH || path.resolve(__dirname, "../../financas.db");
@@ -12,32 +13,66 @@ export function getDb(): Database.Database {
     db = new Database(DB_PATH);
     db.pragma("journal_mode = WAL");
     db.pragma("foreign_keys = ON");
-    initializeDatabase(db);
+    runMigrations(db);
+    seedData(db);
   }
   return db;
 }
 
-function initializeDatabase(database: Database.Database): void {
+function runMigrations(database: Database.Database): void {
+  // Cria tabela de controle de migrations
   database.exec(`
-    CREATE TABLE IF NOT EXISTS usuario (
+    CREATE TABLE IF NOT EXISTS schema_migrations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      nome TEXT NOT NULL,
-      login TEXT NOT NULL UNIQUE,
-      senha TEXT NOT NULL,
-      situacao TEXT NOT NULL DEFAULT 'ATIVO' CHECK(situacao IN ('ATIVO', 'INATIVO'))
+      filename TEXT NOT NULL UNIQUE,
+      applied_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
-
-    CREATE TABLE IF NOT EXISTS lancamento (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      descricao TEXT NOT NULL,
-      data_lancamento TEXT NOT NULL,
-      valor REAL NOT NULL,
-      tipo_lancamento TEXT NOT NULL CHECK(tipo_lancamento IN ('RECEITA', 'DESPESA')),
-      situacao TEXT NOT NULL DEFAULT 'ATIVO' CHECK(situacao IN ('ATIVO', 'INATIVO'))
-    );
-
   `);
 
+  // Resolve o diretório de migrations (funciona com ts-node e JS compilado)
+  const migrationsDir = path.resolve(__dirname, "migrations");
+
+  if (!fs.existsSync(migrationsDir)) {
+    console.warn(`Diretório de migrations não encontrado: ${migrationsDir}`);
+    return;
+  }
+
+  // Lê e ordena os arquivos .sql
+  const files = fs
+    .readdirSync(migrationsDir)
+    .filter((f) => f.endsWith(".sql"))
+    .sort();
+
+  // Busca migrations já aplicadas
+  const applied = new Set(
+    (
+      database
+        .prepare("SELECT filename FROM schema_migrations")
+        .all() as { filename: string }[]
+    ).map((row) => row.filename)
+  );
+
+  // Executa migrations pendentes
+  for (const file of files) {
+    if (applied.has(file)) {
+      continue;
+    }
+
+    console.log(`Aplicando migration: ${file}`);
+    const sql = fs.readFileSync(path.join(migrationsDir, file), "utf-8");
+
+    database.transaction(() => {
+      database.exec(sql);
+      database
+        .prepare("INSERT INTO schema_migrations (filename) VALUES (?)")
+        .run(file);
+    })();
+
+    console.log(`Migration aplicada com sucesso: ${file}`);
+  }
+}
+
+function seedData(database: Database.Database): void {
   const usuarioCount = (
     database.prepare("SELECT COUNT(*) as count FROM usuario").get() as {
       count: number;

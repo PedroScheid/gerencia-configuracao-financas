@@ -6,4 +6,8 @@ module.exports = {
   testMatch: ["**/__tests__/**/*.test.ts"],
   collectCoverageFrom: ["src/**/*.ts", "!src/index.ts"],
   coverageDirectory: "coverage",
+  reporters: [
+    "default",
+    ["jest-junit", { outputDirectory: ".", outputName: "test-results.xml" }]
+  ],
 };
