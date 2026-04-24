@@ -131,9 +131,16 @@ echo ""
 echo "Aguardando containers iniciarem..."
 sleep 15
 
-# ── Instalar Docker CLI dentro do Jenkins ────────────────────
-echo "Instalando Docker CLI no Jenkins..."
-docker exec jenkins bash -c "apt-get update -qq && apt-get install -y -qq docker.io" 2>&1 | tail -1 || true
+# ── Instalar Docker CLI + Node.js dentro do Jenkins ──────────
+echo "Instalando Docker CLI e Node.js no Jenkins (pode levar 1-2 min)..."
+docker exec jenkins bash -c '
+    apt-get update -qq && \
+    apt-get install -y -qq docker.io curl && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y -qq nodejs && \
+    echo "Node.js $(node --version) instalado" && \
+    echo "npm $(npm --version) instalado"
+' 2>&1 | grep -E "(instalado|Err|error)" || true
 
 # ── Mostrar status ───────────────────────────────────────────
 echo ""
