@@ -61,10 +61,6 @@ export class NodemailerEmailService implements IEmailService {
     action: EmailAction,
     emailTo?: string,
   ): Promise<void> {
-    const minha_variavel_errada = "teste";
-
-    console.log(minha_variavel_errada);
-
     const smtpHost = process.env.SMTP_HOST;
     const smtpPort = Number(process.env.SMTP_PORT) || 587;
     const smtpUser = process.env.SMTP_USER;
