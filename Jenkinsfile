@@ -55,7 +55,7 @@ pipeline {
                     }
                     post {
                         always {
-                            junit 'backend/test-results.xml'
+                            junit allowEmptyResults: true, testResults: 'backend/test-results.xml'
                         }
                     }
                 }
@@ -67,7 +67,7 @@ pipeline {
                     }
                     post {
                         always {
-                            junit 'frontend/test-results.xml'
+                            junit allowEmptyResults: true, testResults: 'frontend/test-results.xml'
                         }
                     }
                 }
@@ -103,7 +103,7 @@ pipeline {
             cleanWs(cleanWhenNotBuilt: false)
         }
         success {
-            echo "Pipeline executado com sucesso! Integração disponível na porta ${INTEGRATION_PORT}"
+            echo "Pipeline executado com sucesso! Integracao disponivel na porta ${INTEGRATION_PORT}"
         }
         failure {
             echo 'Pipeline falhou!'
