@@ -49,14 +49,7 @@ function buildEmailHtml(
           <td style="padding: 6px; font-weight: bold;">Situação:</td>
           <td style="padding: 6px;">${lancamento.situacao}</td>
         </tr>
-        ${
-          lancamento.descricao
-            ? `<tr>
-                 <td style="padding: 6px; font-weight: bold;">Descrição:</td>
-                 <td style="padding: 6px;">${lancamento.descricao}</td>
-               </tr>`
-            : ""
-        }
+        ${lancamento.descricao ? `<tr><td style="padding: 6px; font-weight: bold;">Descrição:</td><td style="padding: 6px;">${lancamento.descricao}</td></tr>` : ""}
       </table>
     </div>
   `;
@@ -72,7 +65,7 @@ export class NodemailerEmailService implements IEmailService {
     const smtpPort = Number(process.env.SMTP_PORT) || 587;
     const smtpUser = process.env.SMTP_USER;
     const smtpPass = process.env.SMTP_PASS;
-    const emailTo_ = emailTo ?? process.env.NOTIFICATION_EMAIL;
+    const recipientEmail = emailTo ?? process.env.NOTIFICATION_EMAIL;
 
     // Log das variáveis de ambiente lidas
     console.log("[EmailService] SMTP config:", {
@@ -84,7 +77,7 @@ export class NodemailerEmailService implements IEmailService {
       SMTP_SECURE: process.env.SMTP_SECURE,
     });
 
-    if (!smtpHost || !smtpUser || !smtpPass || !emailTo_) {
+    if (!smtpHost || !smtpUser || !smtpPass || !recipientEmail) {
       console.warn(
         "[EmailService] Notification skipped: SMTP configuration missing. " +
           "Set SMTP_HOST, SMTP_USER, SMTP_PASS and NOTIFICATION_EMAIL.",
@@ -110,7 +103,7 @@ export class NodemailerEmailService implements IEmailService {
     // Log do envio
     console.log("[EmailService] Enviando e-mail:", {
       from: smtpUser,
-      to: emailTo_,
+      to: recipientEmail,
       subject,
       action,
       tipo: lancamento.tipo_lancamento,
@@ -123,7 +116,7 @@ export class NodemailerEmailService implements IEmailService {
     try {
       await transporter.sendMail({
         from: smtpUser,
-        to: emailTo_,
+        to: recipientEmail,
         subject,
         html: buildEmailHtml(lancamento, action),
       });
@@ -148,9 +141,9 @@ export class ResendEmailService implements IEmailService {
     emailTo?: string,
   ): Promise<void> {
     const apiKey = process.env.RESEND_API_KEY;
-    const emailTo_ = emailTo ?? process.env.NOTIFICATION_EMAIL;
+    const recipientEmail = emailTo ?? process.env.NOTIFICATION_EMAIL;
 
-    if (!apiKey || !emailTo_) {
+    if (!apiKey || !recipientEmail) {
       console.warn(
         "[ResendEmailService] Notificação ignorada: defina RESEND_API_KEY e NOTIFICATION_EMAIL no .env",
       );
@@ -165,7 +158,7 @@ export class ResendEmailService implements IEmailService {
     const subject = `Lançamento ${actionLabel}: ${tipo} – R$ ${lancamento.valor.toFixed(2)}`;
 
     console.log("[ResendEmailService] Enviando e-mail:", {
-      to: emailTo_,
+      to: recipientEmail,
       subject,
       action,
       tipo: lancamento.tipo_lancamento,
@@ -175,7 +168,7 @@ export class ResendEmailService implements IEmailService {
 
     const { error } = await resend.emails.send({
       from: "Finanças <onboarding@resend.dev>",
-      to: emailTo_,
+      to: recipientEmail,
       subject,
       html: buildEmailHtml(lancamento, action),
     });

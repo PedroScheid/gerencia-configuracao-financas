@@ -18,10 +18,10 @@
     "indent": ["error", 2],
     "semi": ["error", "always"],
     "quotes": ["error", "double"],
-    "camelcase": ["error", { "properties": "always" }],
+    "camelcase": ["error", { "properties": "never", "allow": ["data_lancamento", "tipo_lancamento", "data_inicio", "data_fim", "notification_email", "senha_hash"] }],
     "@typescript-eslint/naming-convention": [
       "error",
-      { "selector": "variable", "format": ["camelCase", "UPPER_CASE", "PascalCase"] },
+      { "selector": "variable", "format": ["camelCase", "UPPER_CASE", "PascalCase"], "filter": { "regex": "^(data_|tipo_|notification_|senha_)", "match": false } },
       { "selector": "function", "format": ["camelCase"] },
       { "selector": "class", "format": ["PascalCase"] },
       { "selector": "interface", "format": ["PascalCase"] },
