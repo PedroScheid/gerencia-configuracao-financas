@@ -41,6 +41,14 @@ echo "[2/4] Removendo container anterior..."
 docker stop ${PROD_CONTAINER} 2>/dev/null || true
 docker rm ${PROD_CONTAINER} 2>/dev/null || true
 
+# Libera porta 3000 se algo antigo estiver usando (PM2, node, etc)
+BLOCKING_PID=$(sudo lsof -ti:${PROD_PORT} 2>/dev/null || true)
+if [ -n "$BLOCKING_PID" ]; then
+    echo "      Liberando porta ${PROD_PORT} (PID: $BLOCKING_PID)..."
+    sudo kill -9 $BLOCKING_PID 2>/dev/null || true
+    sleep 2
+fi
+
 # Sobe novo container
 echo "[3/4] Criando container de produção..."
 docker run -d \
