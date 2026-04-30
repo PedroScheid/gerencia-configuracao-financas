@@ -8,6 +8,7 @@ import express from "express";
 import cors from "cors";
 import authRoutes from "./routes/auth";
 import lancamentosRoutes from "./routes/lancamentos";
+import categoriasRoutes from "./routes/categorias";
 import { getDb } from "./database/db";
 
 const app = express();
@@ -23,6 +24,7 @@ app.use(express.json());
 // Rotas da API
 app.use("/api/auth", authRoutes);
 app.use("/api/lancamentos", lancamentosRoutes);
+app.use("/api/categorias", categoriasRoutes);
 
 // Serve o frontend React em produção
 const STATIC_PATH =
