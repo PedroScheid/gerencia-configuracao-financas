@@ -1,4 +1,4 @@
-node_modules
+**/node_modules
 .git
 .env
 *.db
@@ -18,3 +18,7 @@ Jenkinsfile
 jest.config.js
 **/__tests__
 **/test-results.xml
+**/.eslintrc.json
+**/jest.config.js
+**/vitest.config.ts
+*.bat
