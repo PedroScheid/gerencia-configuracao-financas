@@ -16,17 +16,25 @@ pipeline {
         }
 
         stage('Install Dependencies') {
-            steps {
-                dir('backend') {
-                    sh 'npm ci'
+            parallel {
+                stage('Install Backend') {
+                    steps {
+                        dir('backend') {
+                            sh 'npm ci'
+                        }
+                    }
                 }
-                dir('frontend') {
-                    sh 'npm ci'
+                stage('Install Frontend') {
+                    steps {
+                        dir('frontend') {
+                            sh 'npm ci'
+                        }
+                    }
                 }
             }
         }
 
-        stage('Lint') {
+        stage('Lint & Test') {
             parallel {
                 stage('Lint Backend') {
                     steps {
@@ -42,11 +50,6 @@ pipeline {
                         }
                     }
                 }
-            }
-        }
-
-        stage('Test') {
-            parallel {
                 stage('Test Backend') {
                     steps {
                         dir('backend') {
