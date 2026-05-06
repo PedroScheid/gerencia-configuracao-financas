@@ -2,15 +2,15 @@
 
 ## Dados de Acesso
 
-| Recurso | URL / Endereço | Usuário | Senha |
-|---------|---------------|---------|-------|
-| VM (SSH) | `177.44.248.116` | `univates` | `pedro123` |
-| Jenkins | `http://177.44.248.116:8082` | `admin` | `admin` |
-| Zabbix | `http://177.44.248.116:8080` | `Admin` | `zabbix` |
-| GitHub | `github.com/PedroScheid/gerencia-configuracao-financas` | — | — |
-| App Integração | `http://177.44.248.116:3001` | — | — |
-| App Homologação | `http://177.44.248.116:3002` | — | — |
-| App Produção | `http://177.44.248.116:3000` | — | — |
+| Recurso         | URL / Endereço                                          | Usuário    | Senha      |
+| --------------- | ------------------------------------------------------- | ---------- | ---------- |
+| VM (SSH)        | `177.44.248.116`                                        | `univates` | `pedro123` |
+| Jenkins         | `http://177.44.248.116:8082`                            | `admin`    | `admin`    |
+| Zabbix          | `http://177.44.248.116:8080`                            | `Admin`    | `zabbix`   |
+| GitHub          | `github.com/PedroScheid/gerencia-configuracao-financas` | —          | —          |
+| App Integração  | `http://177.44.248.116:3001`                            | —          | —          |
+| App Homologação | `http://177.44.248.116:3002`                            | —          | —          |
+| App Produção    | `http://177.44.248.116:3000`                            | —          | —          |
 
 ---
 
@@ -137,7 +137,7 @@ Faça uma alteração visível no código. Por exemplo, mude a cor do header no 
 
 ```css
 /* Mudar as variáveis --primary de verde para outra cor, ou vice-versa */
---primary: #1565c0;       /* azul */
+--primary: #1565c0; /* azul */
 --primary-dark: #0d47a1;
 --primary-light: #e3f2fd;
 ```
@@ -251,16 +251,16 @@ ssh univates@177.44.248.116 "docker ps --format 'table {{.Names}}\t{{.Status}}\t
 
 ## Resumo das Ferramentas
 
-| Ferramenta | Função no Projeto |
-|-----------|-------------------|
-| **Docker** | Containerização da aplicação e dos serviços |
-| **Jenkins** | Pipeline CI/CD (lint, testes, build, deploy) |
-| **Terraform** | Infraestrutura como código (gerencia todos os containers) |
-| **Ansible** | Provisionamento da VM (instalação de Docker, Terraform, Node.js) |
-| **Zabbix** | Monitoramento da infraestrutura |
-| **ESLint** | Quality gate (padrão de código) |
-| **Jest/Vitest** | Testes automatizados (37+ testes) |
-| **Git/GitHub** | Controle de versão e repositório remoto |
+| Ferramenta      | Função no Projeto                                                |
+| --------------- | ---------------------------------------------------------------- |
+| **Docker**      | Containerização da aplicação e dos serviços                      |
+| **Jenkins**     | Pipeline CI/CD (lint, testes, build, deploy)                     |
+| **Terraform**   | Infraestrutura como código (gerencia todos os containers)        |
+| **Ansible**     | Provisionamento da VM (instalação de Docker, Terraform, Node.js) |
+| **Zabbix**      | Monitoramento da infraestrutura                                  |
+| **ESLint**      | Quality gate (padrão de código)                                  |
+| **Jest/Vitest** | Testes automatizados (37+ testes)                                |
+| **Git/GitHub**  | Controle de versão e repositório remoto                          |
 
 ---
 

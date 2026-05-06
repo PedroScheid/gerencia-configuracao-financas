@@ -68,6 +68,12 @@ resource "docker_container" "jenkins" {
     container_path = "/var/run/docker.sock"
   }
 
+  volumes {
+    host_path      = "/home/univates/financas"
+    container_path = "/repo"
+    read_only      = true
+  }
+
   networks_advanced {
     name = docker_network.financas.name
   }

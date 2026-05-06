@@ -11,7 +11,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                checkout scm
+                sh 'cp -r /repo/. .'
             }
         }
 
