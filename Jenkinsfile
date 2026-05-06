@@ -11,49 +11,19 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                sh 'cp -r /repo/. .'
+                sh 'rsync -a --delete --exclude node_modules /repo/ ./'
             }
         }
 
-        stage('Install Dependencies') {
+        stage('Install & Quality') {
             parallel {
-                stage('Install Backend') {
+                stage('Backend') {
                     steps {
                         dir('backend') {
-                            sh 'npm ci'
-                        }
-                    }
-                }
-                stage('Install Frontend') {
-                    steps {
-                        dir('frontend') {
-                            sh 'npm ci'
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('Lint & Test') {
-            parallel {
-                stage('Lint Backend') {
-                    steps {
-                        dir('backend') {
+                            sh 'npm install --prefer-offline'
                             sh 'npm run lint'
-                        }
-                    }
-                }
-                stage('Lint Frontend') {
-                    steps {
-                        dir('frontend') {
-                            sh 'npm run lint'
-                        }
-                    }
-                }
-                stage('Test Backend') {
-                    steps {
-                        dir('backend') {
                             sh 'npm run test:ci'
+                            sh 'npm run build'
                         }
                     }
                     post {
@@ -62,10 +32,13 @@ pipeline {
                         }
                     }
                 }
-                stage('Test Frontend') {
+                stage('Frontend') {
                     steps {
                         dir('frontend') {
+                            sh 'npm install --prefer-offline'
+                            sh 'npm run lint'
                             sh 'npm run test:ci'
+                            sh 'npm run build'
                         }
                     }
                     post {
@@ -86,8 +59,7 @@ pipeline {
         stage('Deploy Integration') {
             steps {
                 sh """
-                    docker stop ${INTEGRATION_CONTAINER} || true
-                    docker rm ${INTEGRATION_CONTAINER} || true
+                    docker rm -f ${INTEGRATION_CONTAINER} 2>/dev/null || true
                     docker run -d \
                         --name ${INTEGRATION_CONTAINER} \
                         --network financas-network \
@@ -102,9 +74,6 @@ pipeline {
     }
 
     post {
-        always {
-            cleanWs(cleanWhenNotBuilt: false)
-        }
         success {
             echo "Pipeline executado com sucesso! Integracao disponivel na porta ${INTEGRATION_PORT}"
         }

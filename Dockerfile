@@ -1,41 +1,18 @@
-# ── Build Stage ──────────────────────────────────────────────
-FROM node:20-alpine AS builder
+# ── Production Stage (pre-built by Jenkins) ─────────────────
+FROM node:20-alpine
 
 WORKDIR /app
 
-# Backend dependencies
-COPY backend/package*.json backend/
-RUN cd backend && npm ci
-
-# Frontend dependencies
-COPY frontend/package*.json frontend/
-RUN cd frontend && npm ci
-
-# Copy source
-COPY backend/ backend/
-COPY frontend/ frontend/
-
-# Build backend (TypeScript → JS)
-RUN cd backend && npm run build
-
-# Build frontend (React → static)
-RUN cd frontend && npm run build
-
-# ── Production Stage ─────────────────────────────────────────
-FROM node:20-alpine AS production
-
-WORKDIR /app
-
-# Copy built backend
-COPY --from=builder /app/backend/dist ./backend/dist
-COPY --from=builder /app/backend/package*.json ./backend/
-COPY --from=builder /app/backend/src/database/migrations ./backend/dist/database/migrations
-
-# Copy built frontend
-COPY --from=builder /app/frontend/dist ./frontend/dist
-
-# Install production dependencies only
+# Install production dependencies first (cacheable layer)
+COPY backend/package*.json ./backend/
 RUN cd backend && npm ci --omit=dev
+
+# Copy pre-built backend (compiled by Jenkins)
+COPY backend/dist ./backend/dist
+COPY backend/src/database/migrations ./backend/dist/database/migrations
+
+# Copy pre-built frontend (compiled by Jenkins)
+COPY frontend/dist ./frontend/dist
 
 # Create data directory for SQLite
 RUN mkdir -p /data
