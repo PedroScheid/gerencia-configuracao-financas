@@ -135,9 +135,10 @@ sleep 15
 echo "Instalando Docker CLI e Node.js no Jenkins (pode levar 1-2 min)..."
 docker exec jenkins bash -c '
     apt-get update -qq && \
-    apt-get install -y -qq docker.io curl && \
+    apt-get install -y -qq docker.io curl rsync && \
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y -qq nodejs && \
+    echo "rsync $(rsync --version | head -1) instalado" && \
     echo "Node.js $(node --version) instalado" && \
     echo "npm $(npm --version) instalado"
 ' 2>&1 | grep -E "(instalado|Err|error)" || true

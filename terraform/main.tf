@@ -84,7 +84,7 @@ resource "docker_container" "jenkins" {
   user = "root"
 
   provisioner "local-exec" {
-    command = "sleep 10 && docker exec jenkins bash -c 'apt-get update && apt-get install -y docker.io' || true"
+    command = "sleep 10 && docker exec jenkins bash -c 'apt-get update && apt-get install -y docker.io rsync' || true"
   }
 }
 
