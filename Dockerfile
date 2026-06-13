@@ -24,7 +24,10 @@ ENV STATIC_PATH=/app/frontend/dist
 
 EXPOSE 3000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -qO- http://localhost:3000/api/auth/me || exit 1
+# Healthcheck na raiz (publica, serve o index.html) -> 200 OK.
+# Antes apontava para /api/auth/me, que exige login e retornava 401,
+# marcando o container como (unhealthy) mesmo com a app no ar.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD wget -qO- http://localhost:3000/ || exit 1
 
 CMD ["node", "backend/dist/index.js"]
