@@ -11,139 +11,141 @@
 | Homologação | `http://177.44.248.116:3002` | — | — |
 | Produção | `http://177.44.248.116:3000` | — | — |
 
-## Antes de começar
+## Como funciona (resumo)
 
-Estado inicial da apresentação: **nada está rodando na VM** — nem a aplicação, nem Jenkins, nem Zabbix. Tudo será provisionado na hora pelo script de setup.
-
-```bash
-ssh univates@177.44.248.116
-cd /home/univates/financas && bash scripts/setup-vm.sh
-```
-
-> "Vou rodar o script de setup. Ele instala Docker, Terraform, Node e, via Terraform, sobe do zero os containers de CI/CD e monitoramento — Jenkins e Zabbix são criados e configurados nesse momento, não estão pré-instalados."
-
-O script leva alguns minutos (faz build/pull das imagens do Jenkins e do Zabbix e instala Docker CLI + Node dentro do Jenkins). Ao final ele imprime os containers ativos e a senha inicial do Jenkins.
+Jenkins e Zabbix ficam **sempre rodando** na VM (provisionados via Terraform, `restart=unless-stopped`). O pipeline dispara **automaticamente** a cada `push` na branch `main` (polling SCM a cada 1 min) e o checkout clona o código direto do GitHub (`checkout scm`). Cada ambiente é um container Docker isolado com seu próprio banco SQLite em volume.
 
 ---
 
-## Step 1 — Provisionar a infra (setup)
+## Passo 0 — Reset (antes de apresentar)
 
-Rodar `scripts/setup-vm.sh` na VM. Acompanhar a saída: Docker → Terraform → containers Jenkins + Zabbix subindo.
+Na sua máquina:
 
-Ao terminar, abrir Jenkins (8082) e Zabbix (8080) → ambos no ar pela primeira vez. As 3 URLs da app (3000/3001/3002) ainda fora do ar.
+```powershell
+.\reset-apresentacao.bat
+```
 
-> "Tudo é Infrastructure as Code. Um comando provisionou toda a esteira de CI/CD e o monitoramento. Nenhum ambiente da aplicação existe ainda."
+O reset faz, nesta ordem:
 
-## Step 2 — Primeiro build (integração)
+1. Reverte a cor do layout para **verde** e remove a **migration 002** localmente.
+2. Faz commit + push do undo (leva o GitHub ao estado inicial).
+3. **Pergunta se pode derrubar a integração** — acompanhe o build do undo no Jenkins (`:8082`) e responda **S** somente quando ele terminar.
+4. Limpa a VM (derruba integração/homolog/prod, remove volumes e a tabela `categoria`).
 
-Jenkins → **Build Now**. ~2 min. Mostrar os stages: install → lint → test → build → docker → deploy.
+Ao final, **só Jenkins e Zabbix ficam no ar**. O `docker ps` exibido confirma o estado.
 
-Acessar `http://177.44.248.116:3001` → app funcionando.
+> Se algum `financas-*` ainda aparecer no `docker ps` final, o build do undo subiu a integração depois da limpeza — rode o reset de novo ou o comando indicado na tela.
 
-> "O pipeline roda lint, 37 testes e build. Se tudo passa, faz deploy automático na integração."
+## Passo 1 — Setup (provisiona a aplicação)
 
-## Step 3 — Promover homologação
+```powershell
+.\setup-vm.bat
+```
+
+Sincroniza o repositório com o GitHub (estado inicial) e aplica o Terraform da aplicação. Não toca em Jenkins/Zabbix, que já estão rodando.
+
+> "A infra de CI/CD e monitoramento já está no ar via Terraform. O setup prepara a aplicação. Nenhum ambiente da app existe ainda."
+
+## Passo 2 — Primeiro build (integração)
+
+No Jenkins (`:8082`), abra o job **financas-pipeline** → **Build Now** (este primeiro é manual, para estabelecer a baseline do polling).
+
+Stages: checkout → install & quality (lint + 37 testes) → build docker → deploy integração.
+
+Acesse `http://177.44.248.116:3001` → app no ar (layout verde).
+
+> "O pipeline roda lint, 37 testes e build. Passando, faz deploy automático na integração."
+
+## Passo 3 — Promover homologação
 
 ```powershell
 .\promote-homolog.bat
 ```
 
-Acessar `http://177.44.248.116:3002` → app em homologação.
+Acesse `http://177.44.248.116:3002`.
 
-> "Um comando. Pega a imagem aprovada na integração e sobe em homologação."
+> "Um comando promove a imagem aprovada na integração para homologação."
 
-## Step 4 — Promover produção
+## Passo 4 — Promover produção
 
 ```powershell
 .\promote-prod.bat
 ```
 
-Acessar `http://177.44.248.116:3000` → app em produção. Mostrar os 3 ambientes lado a lado.
+Acesse `http://177.44.248.116:3000`. Mostre os 3 ambientes lado a lado.
 
 > "Mesmo processo. Só chega em produção o que passou por integração e homologação."
 
-## Step 5 — Alterações locais + commit único
+## Passo 5 — Demo: mudanças + quality gate
 
-Agora todas as mudanças são feitas **localmente na minha máquina**, em um único commit. Ao dar push, o Jenkins dispara o build automaticamente.
+Prepare as três alterações da demo de uma vez (na sua máquina):
 
-Na minha máquina, fazer as três alterações no código:
-
-1. **Erro de ESLint** — adicionar uma variável fora do padrão (ex.: `snake_case`) em `backend/src/index.ts`.
-2. **Alteração visual** — trocar a cor do front de verde para azul em `frontend/src/index.css`.
-3. **Migration do banco** — adicionar `backend/src/database/migrations/002_create_categorias.sql` (cria a tabela `categorias`).
-
-Depois, um único commit + push:
-
-```bash
-git add .
-git commit -m "feat: migration categorias + ajuste visual"
-git push origin main
+```powershell
+.\preparar-demo.bat
 ```
 
-> "Fiz as alterações localmente e dei um único commit. O Jenkins está configurado para disparar o build automaticamente a cada push — não preciso clicar em nada."
+Isso deixa no working tree (Source Tree):
+- erro de **ESLint** em `backend/src/index.ts`,
+- cor do layout **verde → azul**,
+- **migration 002** (tabela categorias).
 
-### 5a — Quality gate pega o erro de lint
+Na **Source Tree**, escreva a mensagem, commite e dê **push**. O Jenkins dispara sozinho (~1 min) e o build **falha no lint**.
 
-O build dispara sozinho e **falha no stage de lint** por causa da variável fora do padrão.
+> "Fiz as mudanças localmente e um único commit. O Jenkins dispara automático a cada push. Aqui ele rejeita o código: o ESLint exige camelCase — nenhum deploy acontece, mesmo com migration e mudança visual no mesmo commit."
 
-> "O ESLint exige camelCase. Código fora do padrão é rejeitado — nenhum deploy acontece, mesmo com migration e alteração visual no mesmo commit."
+Mostre o erro no console do Jenkins. Depois corrija:
 
-Corrigir o erro de lint localmente, commitar e dar push de novo:
-
-```bash
-git add .
-git commit -m "fix: corrige nome de variavel (eslint)"
-git push origin main
+```powershell
+.\corrigir-lint.bat
 ```
 
-### 5b — Build passa e aplica tudo
+Commite e dê **push** de novo. Novo build dispara, **passa** e faz deploy na integração.
 
-O novo push dispara outro build. Agora passa no lint, roda os 37 testes, builda e faz deploy na integração.
+Acesse `http://177.44.248.116:3001`:
+- cor mudou para **azul**,
+- `http://177.44.248.116:3001/api/categorias` → tabela nova existe.
 
-Acessar `http://177.44.248.116:3001/api/categorias` → tabela nova existe.
+> "O sistema de migrations aplica só as novas. A mudança visual e a migration entraram pelo mesmo fluxo — tudo passou pelo pipeline."
 
-Acessar `http://177.44.248.116:3001` → cor mudou (verde → azul).
-
-> "O sistema de migrations verifica quais já rodaram e aplica só as novas. A alteração visual e a migration entraram no mesmo fluxo — tudo passou pelo pipeline antes de chegar no ambiente."
-
-## Step 6 — Propagar para todos os ambientes
+## Passo 6 — Propagar para todos os ambientes
 
 ```powershell
 .\promote-homolog.bat
 .\promote-prod.bat
 ```
 
-Mostrar a cor nova e `/api/categorias` nos 3 ambientes.
+Mostre a cor azul e `/api/categorias` nos 3 ambientes.
 
-> "A mudança propaga: integração → homologação → produção. Cada ambiente é um container isolado com volume de dados próprio."
+> "A mudança propaga: integração → homologação → produção. Cada ambiente é isolado, com volume de dados próprio."
 
-## Step 7 — Zabbix
+## Passo 7 — Zabbix
 
-Acessar `http://177.44.248.116:8080` → Monitoring → Hosts → Latest data.
+`http://177.44.248.116:8080` → Monitoring → Hosts → Latest data.
 
 > "Zabbix monitora CPU, memória, disco e rede do servidor em tempo real."
 
-## Step 8 — Testes no Jenkins
+## Passo 8 — Testes no Jenkins
 
-No último build, clicar em **Test Result** → mostrar os 37 testes passando.
+No último build, **Test Result** → 37 testes passando.
 
 > "37 testes automatizados (Jest + Vitest) com report JUnit integrado ao Jenkins."
 
 ---
 
+## Regra de ouro do polling
+
+Cada **Build Now manual consome o commit atual** — depois dele o polling dirá "No changes". Durante a demo, deixe o polling disparar sozinho (commit → push → aguarde ~1 min) e **não** clique em Build Now no meio, exceto no Passo 2 (baseline inicial).
+
 ## Comandos rápidos
 
-```bash
-bash scripts/setup-vm.sh        # Provisiona infra do zero (Jenkins + Zabbix via Terraform)
-```
-
 ```powershell
-.\reset-apresentacao.bat        # Reset da app (para reapresentar)
-.\promote-homolog.bat           # Integração → Homologação
-.\promote-prod.bat              # Homologação → Produção
+.\reset-apresentacao.bat   # Undo da demo + push + (confirma) limpa VM -> so Jenkins/Zabbix
+.\setup-vm.bat             # Provisiona a aplicacao (nao toca Jenkins/Zabbix)
+.\preparar-demo.bat        # Injeta erro lint + cor azul + migration (working tree)
+.\corrigir-lint.bat        # Remove o erro de lint
+.\promote-homolog.bat      # Integracao -> Homologacao
+.\promote-prod.bat         # Homologacao -> Producao
 ```
-
-As alterações de demonstração (erro de lint, cor verde→azul, migration 002) são feitas **localmente** e enviadas por commit/push, que dispara o build automático no Jenkins.
 
 ## Tecnologias
 
@@ -156,3 +158,4 @@ As alterações de demonstração (erro de lint, cor verde→azul, migration 002
 | Zabbix | Monitoramento |
 | ESLint | Quality gate |
 | Jest/Vitest | Testes automatizados (37) |
+| SQLite | Banco por ambiente (volume isolado) |
