@@ -84,7 +84,7 @@
   <!-- stage chips -->
   <rect x="98" y="442" width="92" height="64" rx="8" fill="#ffffff" stroke="#94a3b8"/>
   <text x="144" y="466" text-anchor="middle" class="tag">Checkout</text>
-  <text x="144" y="484" text-anchor="middle" class="small">rsync /repo</text>
+  <text x="144" y="484" text-anchor="middle" class="small">checkout scm</text>
 
   <rect x="198" y="442" width="150" height="64" rx="8" fill="#ffffff" stroke="#94a3b8"/>
   <text x="273" y="462" text-anchor="middle" class="tag">Install &amp; Quality</text>

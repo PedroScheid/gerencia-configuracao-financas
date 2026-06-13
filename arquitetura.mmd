@@ -24,7 +24,7 @@ flowchart TB
 
         subgraph JENKINS["Jenkins — CI/CD (container :8082)"]
             direction LR
-            S1["Checkout<br/>rsync /repo"]
+            S1["Checkout<br/>checkout scm (GitHub)"]
             S2["Install &amp; Quality<br/>backend + frontend (paralelo)<br/>lint · test · build"]
             S3["Build Docker<br/>financas-app"]
             S4["Deploy Integracao<br/>docker run → :3001"]
