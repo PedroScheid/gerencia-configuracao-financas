@@ -11,13 +11,17 @@ FROM jenkins/jenkins:lts
 USER root
 
 # ── Ferramentas que o pipeline precisa dentro do container ──────
+# build-essential + python3: necessarios para compilar modulos nativos
+# (ex.: better-sqlite3 via node-gyp quando o prebuilt nao baixa).
 RUN apt-get update -qq && \
     apt-get install -y -qq \
         git \
         rsync \
         docker.io \
         curl \
-        ca-certificates && \
+        ca-certificates \
+        build-essential \
+        python3 && \
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y -qq nodejs && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
