@@ -1,11 +1,12 @@
+# Jenkins e Zabbix rodam de forma permanente, fora deste Terraform.
 output "jenkins_url" {
-  value       = var.jenkins_enabled ? "http://localhost:8082" : "Jenkins desabilitado"
-  description = "URL de acesso ao Jenkins"
+  value       = "http://localhost:8082"
+  description = "URL de acesso ao Jenkins (infra permanente)"
 }
 
 output "zabbix_url" {
   value       = "http://localhost:8080"
-  description = "URL de acesso ao Zabbix"
+  description = "URL de acesso ao Zabbix (infra permanente)"
 }
 
 output "homologacao_url" {

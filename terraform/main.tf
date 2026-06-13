@@ -11,223 +11,45 @@ provider "docker" {
   host = "unix:///var/run/docker.sock"
 }
 
+# ══════════════════════════════════════════════════════════════
+# NOTA SOBRE JENKINS E ZABBIX
+# ──────────────────────────────────────────────────────────────
+# Jenkins e Zabbix sao provisionados UMA VEZ e ficam rodando
+# permanentemente (restart=unless-stopped). Eles foram retirados
+# do controle deste Terraform para que o setup-vm.sh / reset NAO
+# os recriem nem derrubem na hora da apresentacao (o build da
+# imagem do Jenkins levava ~9 min, inviavel ao vivo).
+#
+# Este Terraform agora gerencia apenas: a rede, os volumes da
+# aplicacao e os containers de homologacao/producao.
+#
+# Os blocos originais de Jenkins e Zabbix ficam COMENTADOS ao
+# final deste arquivo, como referencia de como foram criados.
+# ══════════════════════════════════════════════════════════════
+
 # ── Network ──────────────────────────────────────────────────
-resource "docker_network" "financas" {
+# Importante: a rede ja existe (criada no provisionamento inicial
+# do Jenkins/Zabbix). Para o Terraform nao tentar recria-la, ela
+# deve ser importada OU mantida fora deste apply. Como Jenkins e
+# Zabbix usam 'financas-network', NAO a recriamos aqui.
+# A app usa a mesma rede ja existente via data source:
+data "docker_network" "financas" {
   name = "financas-network"
 }
 
-# ── Volumes ──────────────────────────────────────────────────
-resource "docker_volume" "jenkins_data" {
-  name = "jenkins-data"
-}
-
+# ── Volumes da aplicacao ─────────────────────────────────────
 resource "docker_volume" "integracao_data" {
   name = "financas-integracao-data"
 }
 
 resource "docker_volume" "homologacao_data" {
-  name = "financas-homologacao-data"
+  name  = "financas-homologacao-data"
   count = var.homologacao_enabled ? 1 : 0
 }
 
 resource "docker_volume" "producao_data" {
-  name = "financas-producao-data"
+  name  = "financas-producao-data"
   count = var.producao_enabled ? 1 : 0
-}
-
-# ── Jenkins Container ────────────────────────────────────────
-# Imagem custom (jenkins/Dockerfile): ja vem com git/rsync/node/docker-cli,
-# plugins e Configuration as Code (admin/admin + seed job financas-pipeline).
-resource "docker_image" "jenkins" {
-  count = var.jenkins_enabled ? 1 : 0
-
-  name = "financas-jenkins:latest"
-
-  build {
-    context    = "${path.module}/../jenkins"
-    dockerfile = "Dockerfile"
-    tag        = ["financas-jenkins:latest"]
-  }
-
-  # Rebuilda se algum arquivo de config do Jenkins mudar
-  triggers = {
-    dockerfile = filesha1("${path.module}/../jenkins/Dockerfile")
-    plugins    = filesha1("${path.module}/../jenkins/plugins.txt")
-    casc       = filesha1("${path.module}/../jenkins/jenkins.yaml")
-  }
-}
-
-resource "docker_container" "jenkins" {
-  count = var.jenkins_enabled ? 1 : 0
-
-  name  = "jenkins"
-  image = docker_image.jenkins[0].image_id
-
-  ports {
-    internal = 8080
-    external = 8082
-  }
-
-  ports {
-    internal = 50000
-    external = 50000
-  }
-
-  volumes {
-    volume_name    = docker_volume.jenkins_data.name
-    container_path = "/var/jenkins_home"
-  }
-
-  volumes {
-    host_path      = "/var/run/docker.sock"
-    container_path = "/var/run/docker.sock"
-  }
-
-  volumes {
-    host_path      = "/home/univates/financas"
-    container_path = "/repo"
-    read_only      = true
-  }
-
-  networks_advanced {
-    name = docker_network.financas.name
-  }
-
-  restart = "unless-stopped"
-
-  # Roda como root para ter acesso ao docker.sock
-  user = "root"
-
-  # Garante que o JCasC seja lido do local copiado pela imagem,
-  # mesmo com o volume persistente montado em /var/jenkins_home.
-  env = [
-    "CASC_JENKINS_CONFIG=/usr/share/jenkins/ref/casc/jenkins.yaml",
-    "JAVA_OPTS=-Djenkins.install.runSetupWizard=false"
-  ]
-}
-
-# ── Zabbix Containers ───────────────────────────────────────
-
-resource "docker_image" "zabbix_server" {
-  name         = "zabbix/zabbix-server-pgsql:alpine-7.0-latest"
-  keep_locally = true
-}
-
-resource "docker_image" "zabbix_web" {
-  name         = "zabbix/zabbix-web-nginx-pgsql:alpine-7.0-latest"
-  keep_locally = true
-}
-
-resource "docker_image" "zabbix_agent" {
-  name         = "zabbix/zabbix-agent:alpine-7.0-latest"
-  keep_locally = true
-}
-
-resource "docker_image" "postgres" {
-  name         = "postgres:15-alpine"
-  keep_locally = true
-}
-
-resource "docker_volume" "zabbix_db_data" {
-  name = "zabbix-db-data"
-}
-
-resource "docker_container" "zabbix_db" {
-  name  = "zabbix-postgres"
-  image = docker_image.postgres.image_id
-
-  env = [
-    "POSTGRES_DB=zabbix",
-    "POSTGRES_USER=zabbix",
-    "POSTGRES_PASSWORD=zabbix_pwd"
-  ]
-
-  volumes {
-    volume_name    = docker_volume.zabbix_db_data.name
-    container_path = "/var/lib/postgresql/data"
-  }
-
-  networks_advanced {
-    name = docker_network.financas.name
-  }
-
-  restart = "unless-stopped"
-}
-
-resource "docker_container" "zabbix_server" {
-  name  = "zabbix-server"
-  image = docker_image.zabbix_server.image_id
-
-  depends_on = [docker_container.zabbix_db]
-
-  env = [
-    "DB_SERVER_HOST=zabbix-postgres",
-    "POSTGRES_DB=zabbix",
-    "POSTGRES_USER=zabbix",
-    "POSTGRES_PASSWORD=zabbix_pwd"
-  ]
-
-  ports {
-    internal = 10051
-    external = 10051
-  }
-
-  networks_advanced {
-    name = docker_network.financas.name
-  }
-
-  restart = "unless-stopped"
-}
-
-resource "docker_container" "zabbix_web" {
-  name  = "zabbix-web"
-  image = docker_image.zabbix_web.image_id
-
-  depends_on = [docker_container.zabbix_server]
-
-  env = [
-    "ZBX_SERVER_HOST=zabbix-server",
-    "DB_SERVER_HOST=zabbix-postgres",
-    "POSTGRES_DB=zabbix",
-    "POSTGRES_USER=zabbix",
-    "POSTGRES_PASSWORD=zabbix_pwd",
-    "PHP_TZ=America/Sao_Paulo"
-  ]
-
-  ports {
-    internal = 8080
-    external = 8080
-  }
-
-  networks_advanced {
-    name = docker_network.financas.name
-  }
-
-  restart = "unless-stopped"
-}
-
-resource "docker_container" "zabbix_agent" {
-  name  = "zabbix-agent"
-  image = docker_image.zabbix_agent.image_id
-
-  depends_on = [docker_container.zabbix_server]
-
-  env = [
-    "ZBX_SERVER_HOST=zabbix-server",
-    "ZBX_HOSTNAME=financas-host"
-  ]
-
-  volumes {
-    host_path      = "/var/run/docker.sock"
-    container_path = "/var/run/docker.sock"
-    read_only      = true
-  }
-
-  networks_advanced {
-    name = docker_network.financas.name
-  }
-
-  restart = "unless-stopped"
 }
 
 # ── Application Containers ──────────────────────────────────
@@ -258,7 +80,7 @@ resource "docker_container" "homologacao" {
   ]
 
   networks_advanced {
-    name = docker_network.financas.name
+    name = data.docker_network.financas.name
   }
 
   restart = "unless-stopped"
@@ -287,8 +109,50 @@ resource "docker_container" "producao" {
   ]
 
   networks_advanced {
-    name = docker_network.financas.name
+    name = data.docker_network.financas.name
   }
 
   restart = "unless-stopped"
 }
+
+# ══════════════════════════════════════════════════════════════
+# REFERENCIA — Infra permanente (Jenkins + Zabbix)
+# ──────────────────────────────────────────────────────────────
+# Os blocos abaixo documentam como Jenkins e Zabbix foram
+# provisionados originalmente. Ficam COMENTADOS porque rodam
+# de forma permanente, fora deste apply. Para reprovisiona-los
+# do zero (ex.: VM nova), descomente e rode um 'terraform apply'
+# DEDICADO, fora do fluxo da apresentacao.
+#
+# # resource "docker_network" "financas" {
+# #   name = "financas-network"
+# # }
+# #
+# # resource "docker_volume" "jenkins_data" {
+# #   name = "jenkins-data"
+# # }
+# #
+# # resource "docker_image" "jenkins" {
+# #   name = "jenkins/jenkins:lts"
+# #   keep_locally = true
+# # }
+# #
+# # resource "docker_container" "jenkins" {
+# #   name  = "jenkins"
+# #   image = docker_image.jenkins.image_id
+# #   ports { internal = 8080  external = 8082 }
+# #   ports { internal = 50000 external = 50000 }
+# #   volumes { volume_name = docker_volume.jenkins_data.name  container_path = "/var/jenkins_home" }
+# #   volumes { host_path = "/var/run/docker.sock"  container_path = "/var/run/docker.sock" }
+# #   networks_advanced { name = docker_network.financas.name }
+# #   restart = "unless-stopped"
+# #   user = "root"
+# # }
+# #
+# # resource "docker_container" "zabbix_db"     { ... postgres:15-alpine ...        }
+# # resource "docker_container" "zabbix_server" { ... porta 10051 ...               }
+# # resource "docker_container" "zabbix_web"    { ... porta 8080  ...               }
+# # resource "docker_container" "zabbix_agent"  { ... ZBX_HOSTNAME=financas-host ... }
+#
+# (Versao completa destes blocos esta no historico do git.)
+# ══════════════════════════════════════════════════════════════

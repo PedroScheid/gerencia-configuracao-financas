@@ -2,8 +2,13 @@
 set -eo pipefail
 
 # ══════════════════════════════════════════════════════════════
-# Setup da VM — instala tudo e sobe a infraestrutura
-# Pode ser executado remotamente via SSH
+# Setup da VM — prepara a aplicacao
+#
+# IMPORTANTE: Jenkins e Zabbix NAO sao tocados por este script.
+# Eles rodam de forma permanente (restart=unless-stopped), ja
+# configurados. Este setup apenas instala dependencias, atualiza
+# o repositorio e aplica o Terraform da APLICACAO (rede ja
+# existente + volumes/containers de homolog/prod quando habilitados).
 # ══════════════════════════════════════════════════════════════
 
 REPO_URL="https://github.com/PedroScheid/gerencia-configuracao-financas.git"
@@ -11,7 +16,8 @@ PROJECT_DIR="/home/univates/financas"
 
 echo ""
 echo "==================================================="
-echo "  Setup da Infraestrutura CI/CD"
+echo "  Setup da Aplicacao"
+echo "  (Jenkins e Zabbix permanecem rodando, intocados)"
 echo "==================================================="
 echo ""
 
@@ -107,66 +113,25 @@ fi
 cd "${PROJECT_DIR}"
 chmod +x scripts/*.sh 2>/dev/null || true
 
-# ── 7. Terraform — sobe Jenkins + Zabbix ────────────────────
-echo "[7/7] Executando Terraform..."
+# ── 7. Terraform — aplica a APLICACAO (nao toca Jenkins/Zabbix) ─
+echo "[7/7] Executando Terraform (aplicacao)..."
 cd "${PROJECT_DIR}/terraform"
 
 # Limpa estado anterior se existir (re-run seguro)
 rm -rf .terraform terraform.tfstate terraform.tfstate.backup 2>/dev/null || true
 
-# Remove containers/networks antigos pra Terraform criar do zero
-echo "      Parando containers antigos..."
-docker stop jenkins zabbix-web zabbix-server zabbix-agent zabbix-postgres 2>/dev/null || true
-docker rm -f jenkins zabbix-web zabbix-server zabbix-agent zabbix-postgres 2>/dev/null || true
-
-# Recria o volume do Jenkins para o JCasC (admin/admin + seed job) ser
-# aplicado do zero a cada setup. Garante config 100% reproduzivel via codigo.
-# (O reset-apresentacao NAO mexe neste volume; so o setup recria.)
-echo "      Recriando volume do Jenkins (aplica JCasC do zero)..."
-docker volume rm jenkins-data 2>/dev/null || true
-
-# Remove a rede de forma confiavel: desconecta qualquer container ainda
-# ligado a ela antes do 'network rm' (senao a rede sobrevive e o
-# terraform apply falha com "network already exists").
-if docker network inspect financas-network &>/dev/null; then
-    echo "      Desconectando containers da rede financas-network..."
-    for C in $(docker network inspect financas-network --format '{{range .Containers}}{{.Name}} {{end}}'); do
-        docker network disconnect -f financas-network "$C" 2>/dev/null || true
-    done
-    docker network rm financas-network 2>/dev/null || true
+# Garante que a rede financas-network exista (Jenkins/Zabbix ja a usam).
+# Se por algum motivo nao existir, cria — sem derrubar nada.
+if ! docker network inspect financas-network &>/dev/null; then
+    echo "      Rede financas-network nao encontrada — criando..."
+    docker network create financas-network 2>/dev/null || true
 fi
-
-# Verificacao final: se a rede ainda existir, aborta com mensagem clara
-if docker network inspect financas-network &>/dev/null; then
-    echo "      ERRO: nao foi possivel remover a rede financas-network."
-    echo "      Rode manualmente: docker rm -f \$(docker ps -aq) && docker network rm financas-network"
-    exit 1
-fi
-echo "      Rede financas-network limpa"
 
 echo "      Inicializando Terraform..."
 terraform init -input=false 2>&1 | tail -2
 
-echo "      Aplicando infraestrutura..."
-terraform apply -auto-approve -input=false -var="jenkins_enabled=true"
-
-# ── Aguardar containers subirem ──────────────────────────────
-echo ""
-echo "Aguardando containers iniciarem..."
-sleep 15
-
-# ── Instalar Docker CLI + Node.js dentro do Jenkins ──────────
-echo "Instalando Docker CLI e Node.js no Jenkins (pode levar 1-2 min)..."
-docker exec jenkins bash -c '
-    apt-get update -qq && \
-    apt-get install -y -qq docker.io curl rsync git && \
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y -qq nodejs && \
-    echo "git $(git --version) instalado" && \
-    echo "rsync $(rsync --version | head -1) instalado" && \
-    echo "Node.js $(node --version) instalado" && \
-    echo "npm $(npm --version) instalado"
-' 2>&1 | grep -E "(instalado|Err|error)" || true
+echo "      Aplicando infraestrutura da aplicacao..."
+terraform apply -auto-approve -input=false
 
 # ── Mostrar status ───────────────────────────────────────────
 echo ""
@@ -179,11 +144,9 @@ echo ""
 echo "==================================================="
 echo "  SETUP CONCLUIDO!"
 echo ""
-echo "  Jenkins: http://177.44.248.116:8082"
-echo "  Zabbix:  http://177.44.248.116:8080"
+echo "  Jenkins: http://177.44.248.116:8082  (ja rodando)"
+echo "  Zabbix:  http://177.44.248.116:8080  (ja rodando)"
 echo ""
-echo "  Senha inicial do Jenkins:"
-docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword 2>/dev/null || echo "  (aguarde 1 min e rode: docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword)"
-echo ""
-echo "  Zabbix login: Admin / zabbix"
+echo "  Integracao sobe via build no Jenkins (porta 3001)."
+echo "  Homologacao/Producao via promote-homolog / promote-prod."
 echo "==================================================="
