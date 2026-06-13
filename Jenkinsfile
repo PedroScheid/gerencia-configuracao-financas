@@ -11,7 +11,10 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                sh 'rsync -a --delete --exclude node_modules /repo/ ./'
+                // Clona o repositorio do GitHub no workspace, no commit detectado
+                // pelo polling SCM. Substitui o antigo rsync de /repo (que usava
+                // o codigo da VM, sem o ultimo commit).
+                checkout scm
             }
         }
 
