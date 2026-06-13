@@ -1,3 +1,5 @@
+const meu_teste = "Olá, mundo!";
+
 import dotenv from "dotenv";
 import path from "path";
 
