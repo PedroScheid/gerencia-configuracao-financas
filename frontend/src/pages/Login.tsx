@@ -11,8 +11,6 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const minha_variavel = "teste";
-
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
