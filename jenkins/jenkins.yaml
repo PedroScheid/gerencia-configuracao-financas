@@ -1,0 +1,57 @@
+# ══════════════════════════════════════════════════════════════
+# Jenkins Configuration as Code (JCasC)
+# Aplicado automaticamente no boot do container.
+# Configura: usuario admin/admin, ferramenta Git, e um seed job
+# que cria o pipeline 'financas-pipeline' ja apontando pro GitHub
+# com polling SCM ativo.
+# ══════════════════════════════════════════════════════════════
+
+jenkins:
+  systemMessage: "Financas CI/CD — provisionado via Configuration as Code"
+  numExecutors: 2
+
+  # ── Seguranca: usuario admin/admin ────────────────────────────
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "admin"
+          password: "admin"
+
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+
+# ── Ferramenta Git (evita o erro "git tool: NONE") ──────────────
+tool:
+  git:
+    installations:
+      - name: "Default"
+        home: "/usr/bin/git"
+
+# ── Seed job: cria o pipeline financas-pipeline automaticamente ──
+jobs:
+  - script: |
+      pipelineJob('financas-pipeline') {
+        description('Pipeline CI/CD do projeto Financas — criado via JCasC + Job DSL')
+
+        // Dispara o build automaticamente ao detectar push no GitHub
+        triggers {
+          scm('* * * * *')
+        }
+
+        definition {
+          cpsScm {
+            scm {
+              git {
+                remote {
+                  url('https://github.com/PedroScheid/gerencia-configuracao-financas.git')
+                }
+                branch('*/main')
+              }
+            }
+            scriptPath('Jenkinsfile')
+            lightweight(false)
+          }
+        }
+      }

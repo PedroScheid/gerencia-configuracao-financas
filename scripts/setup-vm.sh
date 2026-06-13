@@ -117,8 +117,32 @@ rm -rf .terraform terraform.tfstate terraform.tfstate.backup 2>/dev/null || true
 # Remove containers/networks antigos pra Terraform criar do zero
 echo "      Parando containers antigos..."
 docker stop jenkins zabbix-web zabbix-server zabbix-agent zabbix-postgres 2>/dev/null || true
-docker rm jenkins zabbix-web zabbix-server zabbix-agent zabbix-postgres 2>/dev/null || true
-docker network rm financas-network 2>/dev/null || true
+docker rm -f jenkins zabbix-web zabbix-server zabbix-agent zabbix-postgres 2>/dev/null || true
+
+# Recria o volume do Jenkins para o JCasC (admin/admin + seed job) ser
+# aplicado do zero a cada setup. Garante config 100% reproduzivel via codigo.
+# (O reset-apresentacao NAO mexe neste volume; so o setup recria.)
+echo "      Recriando volume do Jenkins (aplica JCasC do zero)..."
+docker volume rm jenkins-data 2>/dev/null || true
+
+# Remove a rede de forma confiavel: desconecta qualquer container ainda
+# ligado a ela antes do 'network rm' (senao a rede sobrevive e o
+# terraform apply falha com "network already exists").
+if docker network inspect financas-network &>/dev/null; then
+    echo "      Desconectando containers da rede financas-network..."
+    for C in $(docker network inspect financas-network --format '{{range .Containers}}{{.Name}} {{end}}'); do
+        docker network disconnect -f financas-network "$C" 2>/dev/null || true
+    done
+    docker network rm financas-network 2>/dev/null || true
+fi
+
+# Verificacao final: se a rede ainda existir, aborta com mensagem clara
+if docker network inspect financas-network &>/dev/null; then
+    echo "      ERRO: nao foi possivel remover a rede financas-network."
+    echo "      Rode manualmente: docker rm -f \$(docker ps -aq) && docker network rm financas-network"
+    exit 1
+fi
+echo "      Rede financas-network limpa"
 
 echo "      Inicializando Terraform..."
 terraform init -input=false 2>&1 | tail -2

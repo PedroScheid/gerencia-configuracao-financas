@@ -36,10 +36,25 @@ resource "docker_volume" "producao_data" {
 }
 
 # ── Jenkins Container ────────────────────────────────────────
+# Imagem custom (jenkins/Dockerfile): ja vem com git/rsync/node/docker-cli,
+# plugins e Configuration as Code (admin/admin + seed job financas-pipeline).
 resource "docker_image" "jenkins" {
-  name         = "jenkins/jenkins:lts"
-  keep_locally = true
-  count        = var.jenkins_enabled ? 1 : 0
+  count = var.jenkins_enabled ? 1 : 0
+
+  name = "financas-jenkins:latest"
+
+  build {
+    context    = "${path.module}/../jenkins"
+    dockerfile = "Dockerfile"
+    tag        = ["financas-jenkins:latest"]
+  }
+
+  # Rebuilda se algum arquivo de config do Jenkins mudar
+  triggers = {
+    dockerfile = filesha1("${path.module}/../jenkins/Dockerfile")
+    plugins    = filesha1("${path.module}/../jenkins/plugins.txt")
+    casc       = filesha1("${path.module}/../jenkins/jenkins.yaml")
+  }
 }
 
 resource "docker_container" "jenkins" {
@@ -80,12 +95,15 @@ resource "docker_container" "jenkins" {
 
   restart = "unless-stopped"
 
-  # Jenkins needs Docker CLI inside the container
+  # Roda como root para ter acesso ao docker.sock
   user = "root"
 
-  provisioner "local-exec" {
-    command = "sleep 10 && docker exec jenkins bash -c 'apt-get update && apt-get install -y docker.io rsync git' || true"
-  }
+  # Garante que o JCasC seja lido do local copiado pela imagem,
+  # mesmo com o volume persistente montado em /var/jenkins_home.
+  env = [
+    "CASC_JENKINS_CONFIG=/usr/share/jenkins/ref/casc/jenkins.yaml",
+    "JAVA_OPTS=-Djenkins.install.runSetupWizard=false"
+  ]
 }
 
 # ── Zabbix Containers ───────────────────────────────────────

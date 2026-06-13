@@ -1,0 +1,22 @@
+# Plugins necessarios para a automacao via codigo
+# (instalados no build da imagem via jenkins-plugin-cli)
+
+# Configuration as Code — le o jenkins.yaml
+configuration-as-code
+
+# Job DSL — usado pelo seed job para criar o pipeline
+job-dsl
+
+# Git e SCM
+git
+
+# Pipeline (workflow) — suite completa de pipeline declarativo
+workflow-aggregator
+workflow-job
+workflow-cps
+
+# Integracao Git + pipeline (checkout scm)
+pipeline-stage-view
+
+# Resultados de teste JUnit (Test Result no Jenkins)
+junit
