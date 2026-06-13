@@ -6,9 +6,9 @@ set -eo pipefail
 #
 # IMPORTANTE: Jenkins e Zabbix NAO sao tocados por este script.
 # Eles rodam de forma permanente (restart=unless-stopped), ja
-# configurados. Este setup apenas instala dependencias, atualiza
-# o repositorio e aplica o Terraform da APLICACAO (rede ja
-# existente + volumes/containers de homolog/prod quando habilitados).
+# configurados. Este setup apenas instala dependencias, sincroniza
+# o repositorio com o GitHub e aplica o Terraform da APLICACAO
+# (rede ja existente + volumes/containers de homolog/prod).
 # ══════════════════════════════════════════════════════════════
 
 REPO_URL="https://github.com/PedroScheid/gerencia-configuracao-financas.git"
@@ -99,12 +99,18 @@ done
 echo "y" | sudo ufw enable 2>/dev/null || true
 echo "      Portas liberadas: 22, 3000-3002, 8080, 8082, 10051"
 
-# ── 6. Clonar/Atualizar repositorio ─────────────────────────
-echo "[6/7] Preparando repositorio..."
+# ── 6. Sincronizar repositorio com o GitHub (FORCADO) ────────
+# Descarta QUALQUER alteracao local (a VM nao deve ter codigo
+# proprio; ela so executa o que esta versionado). Evita o git pull
+# falhar silenciosamente por "local changes would be overwritten"
+# e o setup acabar rodando com codigo velho.
+echo "[6/7] Sincronizando repositorio com o GitHub (forcado)..."
 if [ -d "${PROJECT_DIR}/.git" ]; then
     cd "${PROJECT_DIR}"
-    git pull origin main 2>&1 | tail -1 || echo "      AVISO: git pull falhou (usando versao local)"
-    echo "      Repositorio atualizado"
+    git fetch origin main 2>&1 | tail -1 || echo "      AVISO: git fetch com avisos"
+    git reset --hard origin/main 2>&1 | tail -1
+    git clean -fd 2>&1 | tail -1 || true
+    echo "      Repositorio sincronizado com origin/main"
 else
     rm -rf "${PROJECT_DIR}" 2>/dev/null || true
     git clone "${REPO_URL}" "${PROJECT_DIR}" 2>&1 | tail -1
@@ -113,12 +119,30 @@ fi
 cd "${PROJECT_DIR}"
 chmod +x scripts/*.sh 2>/dev/null || true
 
+# Se o proprio setup-vm.sh foi atualizado pelo sync acima, re-executa
+# UMA vez a versao nova (trava SETUP_REEXEC evita loop infinito).
+if [ -z "${SETUP_REEXEC:-}" ]; then
+    export SETUP_REEXEC=1
+    echo "      Garantindo execucao da versao mais recente do setup..."
+    exec bash "${PROJECT_DIR}/scripts/setup-vm.sh"
+fi
+
 # ── 7. Terraform — aplica a APLICACAO (nao toca Jenkins/Zabbix) ─
 echo "[7/7] Executando Terraform (aplicacao)..."
 cd "${PROJECT_DIR}/terraform"
 
 # Limpa estado anterior se existir (re-run seguro)
 rm -rf .terraform terraform.tfstate terraform.tfstate.backup 2>/dev/null || true
+
+# Protecao: garante que esta rodando a versao nova do main.tf, em que a
+# rede 'financas-network' e um DATA SOURCE (lida, nao criada). Se ainda
+# houver um 'resource "docker_network"' ATIVO (nao comentado), a VM esta
+# com codigo desatualizado e o apply falharia com "network already exists".
+if grep -E '^[[:space:]]*resource[[:space:]]+"docker_network"' main.tf >/dev/null 2>&1; then
+    echo "      ERRO: main.tf desatualizado nesta VM (rede ainda como 'resource')."
+    echo "      Rode novamente o setup (o passo 6 sincroniza com o GitHub)."
+    exit 1
+fi
 
 # Garante que a rede financas-network exista (Jenkins/Zabbix ja a usam).
 # Se por algum motivo nao existir, cria — sem derrubar nada.
