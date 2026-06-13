@@ -1,7 +1,8 @@
+﻿const minha_variavel = 'teste';
 import dotenv from "dotenv";
 import path from "path";
 
-// Carrega o .env sempre relativo ao próprio arquivo (funciona em dev e na VM)
+// Carrega o .env sempre relativo ao prÃ³prio arquivo (funciona em dev e na VM)
 dotenv.config({ path: path.join(__dirname, "..", ".env") });
 
 import express from "express";
@@ -26,14 +27,14 @@ app.use("/api/auth", authRoutes);
 app.use("/api/lancamentos", lancamentosRoutes);
 app.use("/api/categorias", categoriasRoutes);
 
-// Serve o frontend React em produção
+// Serve o frontend React em produÃ§Ã£o
 const STATIC_PATH =
   process.env.STATIC_PATH ||
   path.join(__dirname, "..", "..", "frontend", "dist");
 
 app.use(express.static(STATIC_PATH));
 
-// Qualquer rota não-API retorna o index.html (SPA)
+// Qualquer rota nÃ£o-API retorna o index.html (SPA)
 app.get(/^(?!\/api).*$/, (_req, res) => {
   res.sendFile(path.join(STATIC_PATH, "index.html"));
 });

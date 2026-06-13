@@ -1,4 +1,4 @@
-/* =============================================
+﻿/* =============================================
    RESET & BASE
    ============================================= */
 *,
@@ -10,9 +10,9 @@
 }
 
 :root {
-  --primary: #16a34a;
-  --primary-dark: #15803d;
-  --primary-light: #dcfce7;
+  --primary: #1565c0;
+  --primary-dark: #0d47a1;
+  --primary-light: #e3f2fd;
   --receita: #2e7d32;
   --receita-light: #e8f5e9;
   --despesa: #c62828;
@@ -275,7 +275,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #16a34a 0%, #15803d 50%, #064e3b 100%);
+  background: linear-gradient(135deg, #1565c0 0%, #0d47a1 50%, #0a2463 100%);
   padding: 1rem;
 }
 
