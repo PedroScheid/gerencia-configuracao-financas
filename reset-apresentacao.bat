@@ -2,9 +2,10 @@
 setlocal enabledelayedexpansion
 echo ===================================================
 echo   RESET PARA APRESENTACAO
-echo   Reverte cor (verde) + remove migration 002,
-echo   commita/pusha (dispara build no Jenkins) e
-echo   limpa os ambientes na VM.
+echo   1) Undo da demo (cor verde + remove migration)
+echo   2) Commit/push (leva o GitHub ao estado inicial)
+echo   3) Espera o build do undo terminar
+echo   4) Limpa a VM -> ao final SO Jenkins e Zabbix UP
 echo ===================================================
 echo.
 
@@ -31,18 +32,15 @@ if exist "%MIG%" (
     echo       Ja nao existe
 )
 
-REM -- 3. Verifica se ha mudancas para commitar -----------------
-echo [3/5] Verificando mudancas...
+REM -- 3. Commit + push do undo (leva o GitHub ao estado inicial) -
+echo [3/5] Commitando o undo e enviando para o GitHub...
 git add -A
 git diff --cached --quiet
 if %errorlevel%==0 (
-    echo       Nenhuma mudanca - repositorio ja esta no estado inicial.
-    echo       Pulando commit/push.
+    echo       Nenhuma mudanca - GitHub ja esta no estado inicial.
+    echo       Pulando commit/push e a espera do build.
     goto RESET_VM
 )
-
-REM -- 4. Commit + push (dispara o build no Jenkins) ------------
-echo [4/5] Commitando e enviando para o GitHub...
 git commit -m "reset: estado inicial (layout verde, sem migration 002)"
 git push origin main
 if %errorlevel% neq 0 (
@@ -50,20 +48,53 @@ if %errorlevel% neq 0 (
     pause
     exit /b 1
 )
-echo       Commit/push concluido - o Jenkins vai disparar o build em ~1 min.
+echo       Push concluido. O Jenkins vai buildar o undo.
+
+REM -- 4. Confirmacao manual antes de limpar a VM --------------
+echo.
+echo ===================================================
+echo   ATENCAO - confirme antes de continuar:
+echo.
+echo   O push acima disparou um build no Jenkins que vai
+echo   subir a integracao (estado inicial: verde, sem migration).
+echo.
+echo   ESPERE esse build TERMINAR no Jenkins:
+echo     http://177.44.248.116:8082
+echo.
+echo   Quando o build estiver concluido, confirme abaixo para
+echo   DERRUBAR a integracao e deixar SO Jenkins + Zabbix up.
+echo ===================================================
+echo.
+:CONFIRMA
+set "RESP="
+set /p "RESP=O build do undo ja terminou? Pode derrubar a integracao? (S/N): "
+if /i "%RESP%"=="S" goto RESET_VM
+if /i "%RESP%"=="N" (
+    echo       Ok, aguardando... acompanhe o build no Jenkins e responda S quando terminar.
+    goto CONFIRMA
+)
+echo       Responda S ou N.
+goto CONFIRMA
 
 :RESET_VM
-REM -- 5. Limpa os ambientes na VM (containers/volumes/etc) -----
-echo [5/5] Limpando ambientes na VM...
+REM -- 5. Limpa a VM por ULTIMO (garante so Jenkins + Zabbix up) -
+echo [5/5] Limpando ambientes na VM (derruba integracao/homolog/prod)...
 scp scripts/reset-apresentacao.sh univates@177.44.248.116:/home/univates/reset-apresentacao.sh
 ssh univates@177.44.248.116 "chmod +x /home/univates/reset-apresentacao.sh && /home/univates/reset-apresentacao.sh"
 
 echo.
+echo === Estado atual na VM (confirme: so jenkins + zabbix) ===
+ssh univates@177.44.248.116 "docker ps --format 'table {{.Names}}\t{{.Status}}'"
+echo.
+echo Se algum 'financas-*' aparecer acima, o build do undo subiu
+echo a integracao apos a limpeza. Rode o reset novamente OU execute:
+echo   ssh univates@177.44.248.116 "docker rm -f financas-integracao financas-homologacao financas-producao"
+echo.
 echo ===================================================
 echo   RESET CONCLUIDO!
-echo   - Layout: verde   - Migration 002: removida
-echo   - Build disparado no Jenkins (aguarde ~1 min)
-echo   - Ambientes da VM limpos
+echo   - GitHub: estado inicial (verde, sem migration)
+echo   - VM: esperado SO Jenkins e Zabbix UP
+echo   - Pronto para rodar o setup-vm e iniciar a demo
 echo ===================================================
 echo.
 pause
