@@ -102,4 +102,3 @@ Todas as tasks devem retornar "ok" (já instalado), provando que é idempotente.
 
 **Arquivo para mostrar no VS Code:** `ansible/playbook.yml`
 
----

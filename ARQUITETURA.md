@@ -1,6 +1,6 @@
 # Arquitetura — Gerência de Configuração / Finanças
 
-CI/CD com Jenkins · Infraestrutura como Código (Terraform + Ansible) · Docker · Monitoramento Zabbix · 3 ambientes.
+CI/CD com Jenkins · Infraestrutura como Código (Terraform + Ansible) · Docker · 3 ambientes.
 
 ```mermaid
 %%{init: {'theme':'base', 'themeVariables': {'fontSize':'14px'}}}%%
@@ -16,7 +16,7 @@ flowchart TB
 
     subgraph IAC["Infraestrutura como Codigo (provisiona a VM)"]
         ANSIBLE["Ansible — playbook.yml<br/>Docker · Terraform · Node · Git · UFW"]
-        TERRAFORM["Terraform — main.tf<br/>cria containers Jenkins + Zabbix<br/>rede + volumes"]
+        TERRAFORM["Terraform — main.tf<br/>cria rede + Jenkins + volumes"]
         SETUP["scripts/setup-vm.sh<br/>orquestra o provisionamento"]
         SETUP --> ANSIBLE
         SETUP --> TERRAFORM
@@ -45,24 +45,11 @@ flowchart TB
             INT -- "promote-homolog.bat" --> HOM
             HOM -- "promote-prod.bat" --> PROD
         end
-
-        subgraph ZABBIX["Zabbix — Monitoramento (stack de containers)"]
-            direction LR
-            ZWEB["zabbix-web :8080<br/>nginx · Admin/zabbix"]
-            ZSRV["zabbix-server :10051<br/>coleta e processa metricas"]
-            ZAGENT["zabbix-agent<br/>CPU · memoria · disco · rede<br/>monta docker.sock"]
-            ZDB["zabbix-postgres<br/>PostgreSQL 15<br/>vol zabbix-db-data"]
-            ZWEB --> ZSRV
-            ZAGENT --> ZSRV
-            ZSRV --> ZDB
-        end
     end
 
-    GH == "push → trigger automatico<br/>(webhook / SCM polling)" ==> S1
+    GH == "push → trigger automatico<br/>(SCM polling)" ==> S1
     S4 == "deploy" ==> INT
-    ZAGENT -. "monitora os ambientes" .-> ENVS
-    TERRAFORM -. "cria" .-> JENKINS
-    TERRAFORM -. "cria" .-> ZABBIX
+    TERRAFORM -. "cria (imagem pre-buildada)" .-> JENKINS
     TERRAFORM -. "sobe homolog/prod" .-> ENVS
 
     classDef local fill:#eef2ff,stroke:#818cf8,color:#0f172a;
@@ -73,7 +60,6 @@ flowchart TB
     classDef integ fill:#ecfdf5,stroke:#34d399,color:#047857;
     classDef homol fill:#eff6ff,stroke:#60a5fa,color:#1d4ed8;
     classDef prod fill:#fdf4ff,stroke:#c084fc,color:#7e22ce;
-    classDef zbx fill:#fffbeb,stroke:#f59e0b,color:#b45309;
 
     class CODE,GIT,GH local;
     class ANSIBLE,TERRAFORM,SETUP iac;
@@ -83,5 +69,4 @@ flowchart TB
     class INT integ;
     class HOM homol;
     class PROD prod;
-    class ZWEB,ZSRV,ZAGENT,ZDB zbx;
 ```

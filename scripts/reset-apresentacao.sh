@@ -2,89 +2,65 @@
 set -eo pipefail
 
 # ══════════════════════════════════════════════════════════════
-# Reset para Apresentacao (lado VM)
-# Limpa APENAS os ambientes da aplicacao (containers, imagens,
-# volumes) e dropa a tabela categoria. Mantem Jenkins e Zabbix.
+# Reset para Apresentacao (lado VM) — LIMPEZA TOTAL
+# Deixa a VM "como nova": remove TODOS os containers, imagens da
+# app, volumes e a rede. O setup-vm.sh reergue tudo depois.
 #
-# NOTA: este script NAO edita mais codigo na VM (migration, lint,
-# cor). Essas reversoes agora sao feitas LOCALMENTE pelo
-# reset-apresentacao.bat, que commita/pusha e dispara o build no
-# Jenkins (que clona do GitHub). Editar codigo na VM sujaria o
-# working tree e quebraria o git pull do setup.
+# Objetivo: mostrar ao professor que nao existe nada rodando
+# (docker ps vazio) antes de subir o ambiente pelo setup.
+#
+# NOTA: a imagem financas-jenkins:latest e PRESERVADA (cache),
+# para o setup nao precisar rebuildar (~9 min). Use --full para
+# remover tambem a imagem do Jenkins.
 # ══════════════════════════════════════════════════════════════
 
-echo ""
-echo "==================================================="
-echo "  RESET PARA APRESENTACAO (limpeza de ambientes)"
-echo "  (mantem Jenkins + Zabbix)"
-echo "==================================================="
-echo ""
-
-# Dropa a tabela categoria nos bancos (antes de remover containers/volumes)
-echo "[1/5] Removendo tabela 'categoria' dos bancos (migration 002)..."
-for CONTAINER in financas-integracao financas-homologacao financas-producao; do
-    if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
-        SQL="DROP TABLE IF EXISTS categoria; DELETE FROM schema_migrations WHERE filename='002_create_categorias.sql';"
-        if docker exec ${CONTAINER} sh -c "sqlite3 \"\$DB_PATH\" \"${SQL}\"" 2>/dev/null; then
-            echo "      Tabela removida em: ${CONTAINER}"
-        else
-            echo "      ${CONTAINER}: sqlite3 indisponivel (volume sera removido no passo 3)"
-        fi
-    fi
-done
-
-# Para e remove containers da aplicacao
-echo "[2/5] Removendo containers da aplicacao..."
-for CONTAINER in financas-integracao financas-homologacao financas-producao; do
-    if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
-        docker stop ${CONTAINER} 2>/dev/null || true
-        docker rm ${CONTAINER} 2>/dev/null || true
-        echo "      Removido: ${CONTAINER}"
-    fi
-done
-
-# Remove imagens da aplicacao
-echo "[3/5] Removendo imagens da aplicacao..."
-for TAG in latest homolog production; do
-    if docker image inspect financas-app:${TAG} &>/dev/null; then
-        docker rmi financas-app:${TAG} 2>/dev/null || true
-        echo "      Removida: financas-app:${TAG}"
-    fi
-done
-docker images --format '{{.Repository}}:{{.Tag}}' | grep '^financas-app:' | xargs -r docker rmi 2>/dev/null || true
-
-# Remove volumes da aplicacao (dados SQLite)
-echo "[4/5] Removendo volumes da aplicacao..."
-for VOL in financas-integracao-data financas-homologacao-data financas-producao-data; do
-    if docker volume inspect ${VOL} &>/dev/null; then
-        docker volume rm ${VOL} 2>/dev/null || true
-        echo "      Removido: ${VOL}"
-    fi
-done
-
-# Libera portas da aplicacao
-echo "[5/5] Liberando portas..."
-for PORT in 3000 3001 3002; do
-    PID=$(sudo lsof -ti:${PORT} 2>/dev/null || true)
-    if [ -n "$PID" ]; then
-        sudo kill -9 $PID 2>/dev/null || true
-        echo "      Porta ${PORT} liberada (PID: $PID)"
-    fi
-done
+FULL=0
+[ "${1:-}" = "--full" ] && FULL=1
 
 echo ""
 echo "==================================================="
-echo "  RESET (VM) CONCLUIDO!"
-echo ""
-echo "  Removido: containers, imagens, volumes, tabela categoria"
-echo "  Mantido: Jenkins, Zabbix, rede, infra"
-echo "  (Cor verde e remocao da migration vem pelo build do Jenkins)"
-echo ""
-echo "  Jenkins:  http://177.44.248.116:8082 (funcionando)"
-echo "  Zabbix:   http://177.44.248.116:8080 (funcionando)"
+echo "  RESET PARA APRESENTACAO (limpeza total da VM)"
 echo "==================================================="
+echo ""
+
+# Para e remove TODOS os containers
+echo "[1/4] Parando e removendo todos os containers..."
+CIDS=$(docker ps -aq)
+if [ -n "$CIDS" ]; then
+    docker stop $CIDS 2>/dev/null || true
+    docker rm -f $CIDS 2>/dev/null || true
+    echo "      Containers removidos."
+else
+    echo "      Nenhum container."
+fi
+
+# Remove imagens da aplicacao (e Jenkins se --full)
+echo "[2/4] Removendo imagens da aplicacao..."
+docker images --format '{{.Repository}}:{{.Tag}}' | grep '^financas-app:' | xargs -r docker rmi -f 2>/dev/null || true
+if [ "$FULL" = "1" ]; then
+    echo "      (--full) Removendo tambem a imagem do Jenkins..."
+    docker rmi -f financas-jenkins:latest 2>/dev/null || true
+else
+    echo "      Imagem financas-jenkins:latest PRESERVADA (cache p/ setup rapido)."
+fi
+
+# Remove volumes
+echo "[3/4] Removendo volumes..."
+for VOL in jenkins-data financas-integracao-data financas-homologacao-data financas-producao-data; do
+    docker volume rm "$VOL" 2>/dev/null && echo "      Removido: $VOL" || true
+done
+
+# Remove a rede
+echo "[4/4] Removendo a rede financas-network..."
+docker network rm financas-network 2>/dev/null && echo "      Rede removida." || echo "      Rede ja nao existe."
 
 echo ""
-echo "  Containers ativos:"
-docker ps --format "table {{.Names}}\t{{.Status}}" 2>/dev/null || docker ps
+echo "==================================================="
+echo "  RESET CONCLUIDO! VM limpa."
+echo ""
+echo "  Estado atual do Docker (deve estar vazio):"
+docker ps -a --format "table {{.Names}}\t{{.Status}}" 2>/dev/null || docker ps -a
+echo ""
+echo "  Proximo passo: rodar o setup-vm para subir tudo."
+echo "==================================================="
 echo ""

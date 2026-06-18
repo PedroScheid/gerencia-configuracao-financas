@@ -7,7 +7,8 @@ echo ===================================================
 echo.
 echo Este script vai:
 echo   1. Copiar o script de setup para a VM
-echo   2. Executar na VM (instala Docker, Jenkins, Zabbix...)
+echo   2. Executar na VM (instala Docker, Terraform, Node;
+echo      builda a imagem do Jenkins e sobe tudo via Terraform)
 echo.
 echo VM: univates@177.44.248.116
 echo.
@@ -26,8 +27,8 @@ echo [2/2] Executando setup na VM... (digite a senha novamente)
 ssh -t univates@177.44.248.116 "chmod +x /tmp/setup-vm.sh && /tmp/setup-vm.sh"
 echo.
 echo ===================================================
-echo   Jenkins: http://177.44.248.116:8082
-echo   Zabbix:  http://177.44.248.116:8080
+echo   Jenkins: http://177.44.248.116:8082  (admin / admin)
+echo   Job 'financas-pipeline' ja configurado - de Build Now.
 echo ===================================================
 echo.
 pause
