@@ -1,4 +1,5 @@
-﻿import dotenv from "dotenv";
+﻿const minha_variavel = 'teste';
+import dotenv from "dotenv";
 import path from "path";
 
 // Carrega o .env sempre relativo ao prÃ³prio arquivo (funciona em dev e na VM)
