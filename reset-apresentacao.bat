@@ -35,18 +35,24 @@ REM -- 3. Commit + push do undo (leva o GitHub ao estado inicial) -
 echo [3/4] Commitando o undo e enviando para o GitHub...
 git add -A
 git diff --cached --quiet
-if %errorlevel%==0 (
-    echo       Nenhuma mudanca - GitHub ja esta no estado inicial.
-) else (
-    git commit -m "reset: estado inicial (layout verde, sem migration 002)"
-    git push origin main
-    if %errorlevel% neq 0 (
-        echo       ERRO no push. Verifique autenticacao/branch e tente novamente.
-        pause
-        exit /b 1
-    )
-    echo       Push concluido - GitHub no estado inicial.
-)
+if %errorlevel%==0 goto SEM_MUDANCA
+
+git commit -m "reset: estado inicial (layout verde, sem migration 002)"
+git push origin main
+if errorlevel 1 goto PUSH_FALHOU
+echo       Push concluido - GitHub no estado inicial.
+goto LIMPA_VM
+
+:SEM_MUDANCA
+echo       Nenhuma mudanca - GitHub ja esta no estado inicial.
+goto LIMPA_VM
+
+:PUSH_FALHOU
+echo       ERRO no push. Verifique autenticacao/branch e tente novamente.
+pause
+exit /b 1
+
+:LIMPA_VM
 
 REM -- 4. Limpa a VM por completo ------------------------------
 echo [4/4] Limpando a VM (remove TUDO do Docker)...
