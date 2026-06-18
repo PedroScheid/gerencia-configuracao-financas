@@ -124,10 +124,16 @@ cd "${PROJECT_DIR}/terraform"
 rm -rf .terraform terraform.tfstate terraform.tfstate.backup 2>/dev/null || true
 
 echo "      Inicializando Terraform..."
-terraform init -input=false 2>&1 | tail -2
+if ! terraform init -input=false; then
+    echo "      ERRO: terraform init falhou (veja a mensagem acima). Abortando."
+    exit 1
+fi
 
 echo "      Aplicando infraestrutura (rede + Jenkins + app)..."
-terraform apply -auto-approve -input=false
+if ! terraform apply -auto-approve -input=false; then
+    echo "      ERRO: terraform apply falhou (veja a mensagem acima). Abortando."
+    exit 1
+fi
 
 echo ""
 echo "Aguardando Jenkins iniciar..."

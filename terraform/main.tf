@@ -12,7 +12,7 @@ provider "docker" {
 }
 
 # ══════════════════════════════════════════════════════════════
-''''''# Este Terraform provisiona TODA a infraestrutura do zero:
+# Este Terraform provisiona TODA a infraestrutura do zero:
 #   - rede financas-network
 #   - Jenkins (a partir de imagem pre-buildada financas-jenkins:latest)
 #   - volumes e containers da aplicacao (homolog/prod)
