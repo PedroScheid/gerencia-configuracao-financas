@@ -16,7 +16,7 @@ export default function Header() {
     <header className="header">
       <div className="header__brand">
         <span className="header__icon">💰</span>
-        <span className="header__title">FinançasPessoais App</span>
+        <span className="header__title">FinançasPessoais App TOP</span>
         <span className="header__version">v{__APP_VERSION__}</span>
       </div>
       <div className="header__user">
